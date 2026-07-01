@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Menu, Search, Bell, LogOut, ChevronDown, UserCog, Building2 } from "lucide-react";
+import { Menu, Search, Bell, LogOut, ChevronDown, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -38,29 +38,6 @@ export function Topbar() {
     [alerts, admin, industryId],
   );
 
-  const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
-
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    const pool = admin ? industries : industries.filter((i) => i.id === industryId);
-    return pool
-      .filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.area.toLowerCase().includes(q) ||
-          i.consentNumber.toLowerCase().includes(q),
-      )
-      .slice(0, 6);
-  }, [query, admin, industries, industryId]);
-
-  const openIndustry = (id: string) => {
-    setQuery("");
-    setSearchOpen(false);
-    router.push(admin ? `/dashboard/industries?focus=${id}` : "/dashboard");
-  };
-
   const signOut = () => {
     logout();
     router.push("/");
@@ -85,44 +62,20 @@ export function Topbar() {
       <div className="relative hidden max-w-sm flex-1 md:block">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setSearchOpen(true);
-          }}
-          onFocus={() => setSearchOpen(true)}
-          onBlur={() => window.setTimeout(() => setSearchOpen(false), 120)}
-          placeholder={admin ? "Search industries by name…" : "Search your unit…"}
+          placeholder={admin ? "Search industries, readings, alerts…" : "Search your readings…"}
           className="h-9 w-full rounded-xl border border-border bg-muted/40 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-primary/40 focus:bg-background"
         />
-        {searchOpen && query.trim() && (
-          <div className="absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-xl border border-border bg-card shadow-lg">
-            {results.length ? (
-              results.map((i) => (
-                <button
-                  key={i.id}
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => openIndustry(i.id)}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-muted"
-                >
-                  <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Building2 className="h-3.5 w-3.5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-foreground">{i.name}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{i.area}</span>
-                  </span>
-                </button>
-              ))
-            ) : (
-              <p className="px-3 py-2.5 text-sm text-muted-foreground">No industry matches “{query.trim()}”.</p>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-1.5">
+        <span className="mr-1 hidden items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-600 sm:inline-flex">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+          Live · 24×7
+        </span>
+
         <Button asChild variant="ghost" size="icon" className="relative">
           <Link href={admin ? "/dashboard/alerts" : "/dashboard"} aria-label="Alerts">
             <Bell className="h-5 w-5" />
