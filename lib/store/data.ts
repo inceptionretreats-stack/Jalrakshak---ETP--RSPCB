@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { firestoreStorage } from "@/lib/data/firestore-storage";
 import type {
   Industry,
   FlowMeterReading,
@@ -426,6 +427,7 @@ export const useDataStore = create<DataState>()(
       name: "jalrakshak-data",
       version: 4,
       skipHydration: true,
+      storage: createJSONStorage(() => firestoreStorage),
       // Visitors from an earlier deploy persisted a shape without ETP/CETP data.
       // Reset anything older than v4 to the current seed so the ETP/CETP units and
       // their entries are present and consistent (no stale/mixed state).
