@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus, Eye, Phone, Mail, FileText } from "lucide-react";
@@ -22,6 +22,14 @@ export default function IndustriesPage() {
   const industries = useDataStore((s) => s.industries);
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["key"]>("all");
   const [selected, setSelected] = useState<Industry | null>(null);
+
+  // Open a unit's detail dialog when arrived via the topbar search (?focus=<id>).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("focus");
+    if (!id) return;
+    const found = industries.find((i) => i.id === id);
+    if (found) setSelected(found);
+  }, [industries]);
 
   const filtered = useMemo(() => industries, [industries]);
 
