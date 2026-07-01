@@ -1,22 +1,44 @@
 "use client";
 
 import { useEffect } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import { useAuthStore } from "@/lib/store/auth";
 import { useUIStore } from "@/lib/store/ui";
 import { useDataStore } from "@/lib/store/data";
-import { useAccountsStore } from "@/lib/store/accounts";
+import type { RoleId } from "@/lib/types";
 
 /**
- * Persisted stores use `skipHydration` so server + first client render share the
- * deterministic seed (no hydration mismatch). We rehydrate from localStorage
- * after mount.
+ * Auth state is driven by Firebase: onAuthStateChanged restores the session on
+ * reload and loads the user's `users/{uid}` profile (role + industryId).
+ * The UI and data stores still use `skipHydration` + localStorage for now
+ * (data migrates to Firestore in a later stage).
  */
 export function StoreHydrator() {
   useEffect(() => {
-    useAuthStore.persist.rehydrate();
     useUIStore.persist.rehydrate();
     useDataStore.persist.rehydrate();
-    useAccountsStore.persist.rehydrate();
+
+    const setSession = useAuthStore.getState().setSession;
+    const unsub = onAuthStateChanged(auth, async (fbUser) => {
+      if (!fbUser) {
+        setSession(null);
+        return;
+      }
+      try {
+        const snap = await getDoc(doc(db, "users", fbUser.uid));
+        const d = snap.exists() ? snap.data() : null;
+        setSession({
+          uid: fbUser.uid,
+          role: (d?.role as RoleId) ?? "etp",
+          industryId: (d?.industryId as string | null) ?? null,
+        });
+      } catch {
+        setSession({ uid: fbUser.uid, role: "etp", industryId: null });
+      }
+    });
+    return unsub;
   }, []);
   return null;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { DesktopSidebar } from "./sidebar";
@@ -14,15 +14,9 @@ import { cn } from "@/lib/utils";
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const collapsed = useUIStore((s) => s.sidebarCollapsed);
   const role = useAuthStore((s) => s.role);
+  const authReady = useAuthStore((s) => s.authReady);
   const router = useRouter();
   const pathname = usePathname();
-  const [authReady, setAuthReady] = useState(false);
-
-  useEffect(() => {
-    if (useAuthStore.persist.hasHydrated()) setAuthReady(true);
-    const unsub = useAuthStore.persist.onFinishHydration(() => setAuthReady(true));
-    return unsub;
-  }, []);
 
   useEffect(() => {
     if (!authReady) return;

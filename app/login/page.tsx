@@ -43,25 +43,29 @@ export default function LoginPage() {
     setTimeout(() => router.push("/dashboard"), 500);
   };
 
-  const signIn = () => {
+  const signIn = async () => {
     setError("");
-    const user = authenticate(email, password);
+    setEntering(true);
+    const user = await authenticate(email, password);
     if (!user) {
       setError("Invalid email or password.");
+      setEntering(false);
       return;
     }
     go(user.role, user.industryId);
   };
 
-  const signUp = () => {
+  const signUp = async () => {
     setError("");
     if (!company) {
       setError("Pick your ETP unit.");
       return;
     }
-    const res = signup({ name, email, password, role: "etp", industryId: company });
+    setEntering(true);
+    const res = await signup({ name, email, password, role: "etp", industryId: company });
     if (!res.ok) {
       setError(res.error);
+      setEntering(false);
       return;
     }
     go(res.user.role, res.user.industryId);

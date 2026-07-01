@@ -1,17 +1,19 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import type { RoleId } from "@/lib/types";
 
 /**
- * Demo-grade local accounts. Passwords are stored in localStorage in plain text
- * — this is a frontend prototype, NOT real authentication. A future phase swaps
- * this for a real backend (server-side auth + database).
+ * Accounts are backed by Firebase Authentication (email/password). The user's
+ * app profile (name, role, ETP industryId) lives in a Firestore `users/{uid}`
+ * document. Demo logins (admin@rspcb.in / etp@demo.in) are seeded as real
+ * Firebase Auth users.
  */
 export interface Account {
-  id: string;
+  id: string; // Firebase Auth uid
   name: string;
   email: string;
-  password: string;
   role: RoleId;
   industryId: string | null;
 }
@@ -27,43 +29,66 @@ export interface SignupInput {
 type SignupResult = { ok: true; user: Account } | { ok: false; error: string };
 
 interface AccountsState {
-  users: Account[];
-  signup: (input: SignupInput) => SignupResult;
-  authenticate: (email: string, password: string) => Account | null;
+  signup: (input: SignupInput) => Promise<SignupResult>;
+  authenticate: (email: string, password: string) => Promise<Account | null>;
 }
 
-/** Seeded demo logins so the app is usable immediately (shown as a hint on Sign In). */
-export const DEMO_ACCOUNTS: Account[] = [
-  { id: "U-ADMIN", name: "RSPCB Monitoring Body", email: "admin@rspcb.in", password: "rspcb123", role: "monitoring-admin", industryId: null },
-  { id: "U-ETP", name: "ETP Unit Operator", email: "etp@demo.in", password: "demo123", role: "etp", industryId: "IND-019" },
-];
+function messageForCode(code: string): string {
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "An account with this email already exists.";
+    case "auth/invalid-email":
+      return "Enter a valid email.";
+    case "auth/weak-password":
+      return "Password must be at least 6 characters.";
+    case "auth/network-request-failed":
+      return "Network error — check your connection and try again.";
+    default:
+      return "Something went wrong. Please try again.";
+  }
+}
 
-export const useAccountsStore = create<AccountsState>()(
-  persist(
-    (set, get) => ({
-      users: DEMO_ACCOUNTS.map((u) => ({ ...u })),
-      signup: (input) => {
-        const email = input.email.trim().toLowerCase();
-        if (!input.name.trim()) return { ok: false, error: "Name is required." };
-        if (!/^\S+@\S+\.\S+$/.test(email)) return { ok: false, error: "Enter a valid email." };
-        if (input.password.length < 4) return { ok: false, error: "Password must be at least 4 characters." };
-        if (get().users.some((u) => u.email === email)) return { ok: false, error: "An account with this email already exists." };
-        const user: Account = {
-          id: `U-${Date.now().toString(36).toUpperCase()}`,
-          name: input.name.trim(),
-          email,
-          password: input.password,
-          role: input.role,
-          industryId: input.industryId,
-        };
-        set((s) => ({ users: [user, ...s.users] }));
-        return { ok: true, user };
-      },
-      authenticate: (email, password) => {
-        const e = email.trim().toLowerCase();
-        return get().users.find((u) => u.email === e && u.password === password) ?? null;
-      },
-    }),
-    { name: "jalrakshak-etp-accounts", version: 1, skipHydration: true },
-  ),
-);
+export const useAccountsStore = create<AccountsState>()(() => ({
+  signup: async (input) => {
+    const email = input.email.trim().toLowerCase();
+    if (!input.name.trim()) return { ok: false, error: "Name is required." };
+    if (!/^\S+@\S+\.\S+$/.test(email)) return { ok: false, error: "Enter a valid email." };
+    if (input.password.length < 6) return { ok: false, error: "Password must be at least 6 characters." };
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, input.password);
+      const user: Account = {
+        id: cred.user.uid,
+        name: input.name.trim(),
+        email,
+        role: input.role,
+        industryId: input.industryId,
+      };
+      await setDoc(doc(db, "users", cred.user.uid), {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        industryId: user.industryId,
+      });
+      return { ok: true, user };
+    } catch (e) {
+      return { ok: false, error: messageForCode((e as { code?: string }).code ?? "") };
+    }
+  },
+  authenticate: async (email, password) => {
+    const e = email.trim().toLowerCase();
+    try {
+      const cred = await signInWithEmailAndPassword(auth, e, password);
+      const snap = await getDoc(doc(db, "users", cred.user.uid));
+      const d = snap.exists() ? snap.data() : null;
+      return {
+        id: cred.user.uid,
+        name: (d?.name as string) ?? cred.user.email ?? e,
+        email: (d?.email as string) ?? e,
+        role: (d?.role as RoleId) ?? "etp",
+        industryId: (d?.industryId as string | null) ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+}));

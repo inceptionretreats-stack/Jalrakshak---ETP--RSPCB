@@ -21,7 +21,7 @@ const schema = z.object({
   consentNumber: z.string().min(4, "Consent number required"),
   mobile: z.string().min(8, "Valid mobile required"),
   email: z.string().regex(/^\S+@\S+\.\S+$/, "Valid email required"),
-  password: z.string().min(4, "Password must be at least 4 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   etpCapacity: z.coerce.number().positive("Must be > 0"),
   maxEffluentGeneration: z.coerce.number().positive("Must be > 0"),
   roStage1: z.coerce.number().positive("Must be > 0"),
@@ -46,7 +46,7 @@ export default function RegisterEtpPage() {
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
-  const onSubmit = handleSubmit((values) => {
+  const onSubmit = handleSubmit(async (values) => {
     const v = schema.parse(values);
     setSubmitting(true);
     const created = registerIndustry({
@@ -67,8 +67,12 @@ export default function RegisterEtpPage() {
       roStage3: v.roStage3,
       roStage4: v.roStage4,
     });
-    const acct = signup({ name: v.ownerName, email: v.email, password: v.password, role: "etp", industryId: created.id });
-    if (!acct.ok) toast.warning("Account note", { description: acct.error });
+    const acct = await signup({ name: v.ownerName, email: v.email, password: v.password, role: "etp", industryId: created.id });
+    if (!acct.ok) {
+      toast.error("Registration failed", { description: acct.error });
+      setSubmitting(false);
+      return;
+    }
     toast.success("ETP unit registered", { description: `${created.name} is now pending verification.` });
     login("etp", created.id);
     setTimeout(() => router.push("/dashboard"), 600);
