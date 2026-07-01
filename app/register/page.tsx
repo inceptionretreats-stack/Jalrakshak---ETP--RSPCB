@@ -73,6 +73,11 @@ export default function RegisterEtpPage() {
       setSubmitting(false);
       return;
     }
+    // registerIndustry() above ran before sign-in, so its state/app write was
+    // rejected by the Firestore rules (which require auth). Now that signup()
+    // has authenticated us, re-persist so the new unit is actually saved to
+    // Firestore and survives a reload.
+    useDataStore.setState((s) => ({ ...s }));
     toast.success("ETP unit registered", { description: `${created.name} is now pending verification.` });
     login("etp", created.id);
     setTimeout(() => router.push("/dashboard"), 600);
