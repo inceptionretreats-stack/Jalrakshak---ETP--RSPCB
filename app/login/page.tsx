@@ -3,12 +3,9 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, ShieldCheck, Activity, Lock, Droplets, Plus, Mail, KeyRound, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShieldCheck, Activity, Lock, Droplets, Plus, Mail, KeyRound, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JalRakshakLogo } from "@/components/shared/logo";
-import { Icon } from "@/components/shared/icon";
-import { ROLES } from "@/lib/constants";
 import { useAuthStore } from "@/lib/store/auth";
 import { useDataStore } from "@/lib/store/data";
 import { useAccountsStore } from "@/lib/store/accounts";
@@ -34,16 +31,11 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selected, setSelected] = useState<RoleId | null>(null);
   const [company, setCompany] = useState("");
   const [error, setError] = useState("");
   const [entering, setEntering] = useState(false);
 
-  const needsCompany = selected === "etp";
-  const unitOptions = useMemo(() => {
-    if (selected === "etp") return industries.filter((i) => i.isIndividualETP);
-    return [];
-  }, [selected, industries]);
+  const unitOptions = useMemo(() => industries.filter((i) => i.isIndividualETP), [industries]);
 
   const go = (role: RoleId, industryId: string | null) => {
     setEntering(true);
@@ -63,16 +55,11 @@ export default function LoginPage() {
 
   const signUp = () => {
     setError("");
-    if (!selected) {
-      setError("Choose how you sign in (Monitoring Body or ETP).");
-      return;
-    }
-    const industryId = needsCompany ? company : null;
-    if (selected === "etp" && !company) {
+    if (!company) {
       setError("Pick your ETP unit.");
       return;
     }
-    const res = signup({ name, email, password, role: selected, industryId });
+    const res = signup({ name, email, password, role: "etp", industryId: company });
     if (!res.ok) {
       setError(res.error);
       return;
@@ -153,18 +140,18 @@ export default function LoginPage() {
                   mode === m ? "bg-indigo-600 text-white shadow" : "text-slate-500 hover:text-slate-700",
                 )}
               >
-                {m === "signin" ? "Sign in" : "Create account"}
+                {m === "signin" ? "Sign in" : "Register Unit"}
               </button>
             ))}
           </div>
 
           <h2 className="mt-4 font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            {mode === "signin" ? "Welcome back" : "Create your account"}
+            {mode === "signin" ? "Welcome back" : "Register Unit"}
           </h2>
           <p className="mt-1.5 text-sm text-slate-500">
             {mode === "signin"
               ? "Sign in to your RSPCB or textile-unit account."
-              : "The Monitoring Body sees everything; an individual ETP unit sees and feeds only its own data."}
+              : "Register your ETP unit to feed and monitor its own water-balance data."}
           </p>
 
           {/* credentials */}
@@ -182,70 +169,28 @@ export default function LoginPage() {
             </LField>
           </div>
 
-          {/* signup: role + unit pickers */}
+          {/* signup: ETP unit picker */}
           {mode === "signup" && (
-            <>
-              <p className="mt-5 mb-2 text-sm font-semibold text-slate-700">Choose your role</p>
-              <div className="grid gap-3 sm:grid-cols-3">
-                {ROLES.map((role) => {
-                  const isSel = selected === role.id;
-                  return (
-                    <button
-                      key={role.id}
-                      type="button"
-                      onClick={() => {
-                        setSelected(role.id);
-                        setCompany("");
-                      }}
-                      className={cn(
-                        "group relative overflow-hidden rounded-2xl border-2 bg-white p-4 text-left transition-all",
-                        isSel ? "border-indigo-500 shadow-lg shadow-indigo-500/10" : "border-slate-200 hover:border-indigo-300 hover:shadow-md",
-                      )}
-                    >
-                      <div className="flex items-start justify-between">
-                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-sm" style={{ background: role.accent }}>
-                          <Icon name={role.icon} className="h-5 w-5" />
-                        </span>
-                        {isSel && (
-                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-white">
-                            <Check className="h-3 w-3" />
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="mt-2 font-display text-sm font-bold text-slate-900">{role.name}</h3>
-                      <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">{role.scope}</p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <AnimatePresence initial={false}>
-                {selected === "etp" && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
-                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-white p-4">
-                      <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                        <Droplets className="h-4 w-4 text-teal-500" />
-                        Which ETP unit do you operate?
-                      </label>
-                      <select value={company} onChange={(e) => setCompany(e.target.value)} className={selectCls}>
-                        <option value="" disabled>
-                          Select your unit…
-                        </option>
-                        {unitOptions.map((i) => (
-                          <option key={i.id} value={i.id}>
-                            {i.name} — {i.area.split(",")[0]}
-                          </option>
-                        ))}
-                      </select>
-                      <Link href="/register" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-600 hover:underline">
-                        <Plus className="h-4 w-4" />
-                        Register a new ETP unit
-                      </Link>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </>
+            <div className="mt-5 rounded-2xl border border-indigo-200 bg-white p-4">
+              <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <Droplets className="h-4 w-4 text-teal-500" />
+                Which ETP unit do you operate?
+              </label>
+              <select value={company} onChange={(e) => setCompany(e.target.value)} className={selectCls}>
+                <option value="" disabled>
+                  Select your unit…
+                </option>
+                {unitOptions.map((i) => (
+                  <option key={i.id} value={i.id}>
+                    {i.name} — {i.area.split(",")[0]}
+                  </option>
+                ))}
+              </select>
+              <Link href="/register" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-600 hover:underline">
+                <Plus className="h-4 w-4" />
+                Register a new ETP unit
+              </Link>
+            </div>
           )}
 
           {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">{error}</p>}
@@ -256,7 +201,7 @@ export default function LoginPage() {
             size="lg"
             className="mt-6 h-12 w-full gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-base font-semibold text-white hover:from-indigo-600/90 hover:to-violet-600/90"
           >
-            {entering ? "Entering…" : mode === "signin" ? "Sign In" : "Create account & enter"}
+            {entering ? "Entering…" : mode === "signin" ? "Sign In" : "Register & enter"}
             {!entering && <ArrowRight className="h-4 w-4" />}
           </Button>
 
@@ -268,7 +213,7 @@ export default function LoginPage() {
               <p className="mt-3 text-center text-sm text-slate-500">
                 New here?{" "}
                 <button type="button" onClick={() => { setMode("signup"); setError(""); }} className="font-semibold text-indigo-600 hover:underline">
-                  Create an account
+                  Register a unit
                 </button>
               </p>
             </>

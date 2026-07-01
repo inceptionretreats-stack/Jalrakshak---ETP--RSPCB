@@ -26,6 +26,11 @@ export const metadata: Metadata = {
   applicationName: "RSPCB JalRakshak",
   keywords: ["RSPCB", "JalRakshak", "ETP", "Effluent Treatment Plant", "Balotra", "wastewater monitoring", "water balance"],
   authors: [{ name: "Rajasthan State Pollution Control Board" }],
+  icons: {
+    icon: "/rspcb-logo.jpeg",
+    shortcut: "/rspcb-logo.jpeg",
+    apple: "/rspcb-logo.jpeg",
+  },
 };
 
 export const viewport: Viewport = {
