@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Building2, Droplets, Check } from "lucide-react";
+import { ArrowLeft, Building2, Droplets, Check, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { JalRakshakLogo } from "@/components/shared/logo";
@@ -39,6 +39,7 @@ export default function RegisterEtpPage() {
   const login = useAuthStore((s) => s.login);
   const signup = useAccountsStore((s) => s.signup);
   const [submitting, setSubmitting] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   const {
     register,
@@ -113,7 +114,16 @@ export default function RegisterEtpPage() {
             </h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Company Name" error={errors.name?.message}>
-                <input {...register("name")} className={inputCls} placeholder="e.g. Pali Road Processors" />
+                <input
+                  {...register("name")}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    e.target.value = val.charAt(0).toUpperCase() + val.slice(1);
+                    register("name").onChange(e);
+                  }}
+                  className={inputCls}
+                  placeholder="e.g. Pali Road Processors"
+                />
               </Field>
               <Field label="Owner Name" error={errors.ownerName?.message}>
                 <input {...register("ownerName")} className={inputCls} placeholder="Full name" />
@@ -131,7 +141,23 @@ export default function RegisterEtpPage() {
                 <input {...register("email")} className={inputCls} placeholder="plant@company.in" />
               </Field>
               <Field label="Login Password" error={errors.password?.message}>
-                <input type="password" {...register("password")} className={inputCls} placeholder="Set a password to sign in later" />
+                <div className="relative">
+                  <input
+                    type={showPw ? "text" : "password"}
+                    {...register("password")}
+                    className={inputCls + " pr-10"}
+                    placeholder="Set a password to sign in later"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPw((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+                    aria-label={showPw ? "Hide password" : "Show password"}
+                  >
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </Field>
             </div>
           </div>

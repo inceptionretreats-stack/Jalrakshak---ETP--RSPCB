@@ -1,16 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ShieldCheck, Activity, Lock, Droplets, Plus, Mail, KeyRound, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShieldCheck, Activity, Lock, Droplets, Mail, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JalRakshakLogo } from "@/components/shared/logo";
 import { useAuthStore } from "@/lib/store/auth";
-import { useDataStore } from "@/lib/store/data";
 import { useAccountsStore } from "@/lib/store/accounts";
 import type { RoleId } from "@/lib/types";
-import { cn } from "@/lib/utils";
 
 const HIGHLIGHTS = [
   { icon: Activity, text: "Live flow & energy monitoring" },
@@ -18,24 +16,15 @@ const HIGHLIGHTS = [
   { icon: Droplets, text: "ZLD water-recovery oversight" },
 ];
 
-type Mode = "signin" | "signup";
-
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
-  const industries = useDataStore((s) => s.industries);
-  const signup = useAccountsStore((s) => s.signup);
   const authenticate = useAccountsStore((s) => s.authenticate);
 
-  const [mode, setMode] = useState<Mode>("signin");
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [company, setCompany] = useState("");
   const [error, setError] = useState("");
   const [entering, setEntering] = useState(false);
-
-  const unitOptions = useMemo(() => industries.filter((i) => i.isIndividualETP), [industries]);
 
   const go = (role: RoleId, industryId: string | null) => {
     setEntering(true);
@@ -53,22 +42,6 @@ export default function LoginPage() {
       return;
     }
     go(user.role, user.industryId);
-  };
-
-  const signUp = async () => {
-    setError("");
-    if (!company) {
-      setError("Pick your ETP unit.");
-      return;
-    }
-    setEntering(true);
-    const res = await signup({ name, email, password, role: "etp", industryId: company });
-    if (!res.ok) {
-      setError(res.error);
-      setEntering(false);
-      return;
-    }
-    go(res.user.role, res.user.industryId);
   };
 
   return (
@@ -129,106 +102,51 @@ export default function LoginPage() {
             <JalRakshakLogo size={36} />
           </div>
 
-          {/* mode toggle */}
+          {/* tabs: Sign in (active) · Register Unit -> full /register form */}
           <div className="mt-4 inline-flex self-start rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-            {(["signin", "signup"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => {
-                  setMode(m);
-                  setError("");
-                }}
-                className={cn(
-                  "rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors",
-                  mode === m ? "bg-indigo-600 text-white shadow" : "text-slate-500 hover:text-slate-700",
-                )}
-              >
-                {m === "signin" ? "Sign in" : "Register Unit"}
-              </button>
-            ))}
+            <span className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white shadow">Sign in</span>
+            <Link
+              href="/register"
+              className="rounded-lg px-4 py-1.5 text-sm font-semibold text-slate-500 transition-colors hover:text-slate-700"
+            >
+              Register Unit
+            </Link>
           </div>
 
-          <h2 className="mt-4 font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            {mode === "signin" ? "Welcome back" : "Register Unit"}
-          </h2>
-          <p className="mt-1.5 text-sm text-slate-500">
-            {mode === "signin"
-              ? "Sign in to your RSPCB or textile-unit account."
-              : "Register your ETP unit to feed and monitor its own water-balance data."}
-          </p>
+          <h2 className="mt-4 font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Welcome back</h2>
+          <p className="mt-1.5 text-sm text-slate-500">Sign in to your RSPCB or textile-unit account.</p>
 
           {/* credentials */}
           <div className="mt-6 space-y-4">
-            {mode === "signup" && (
-              <LField label="Full name" icon={<User className="h-4 w-4" />}>
-                <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Your name" autoComplete="name" />
-              </LField>
-            )}
             <LField label="Email" icon={<Mail className="h-4 w-4" />}>
               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className={inputCls} placeholder="you@unit.in" autoComplete="email" />
             </LField>
             <LField label="Password" icon={<KeyRound className="h-4 w-4" />}>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className={inputCls} placeholder="••••••••" autoComplete={mode === "signin" ? "current-password" : "new-password"} />
+              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className={inputCls} placeholder="••••••••" autoComplete="current-password" />
             </LField>
           </div>
-
-          {/* signup: ETP unit picker */}
-          {mode === "signup" && (
-            <div className="mt-5 rounded-2xl border border-indigo-200 bg-white p-4">
-              <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Droplets className="h-4 w-4 text-teal-500" />
-                Which ETP unit do you operate?
-              </label>
-              <select value={company} onChange={(e) => setCompany(e.target.value)} className={selectCls}>
-                <option value="" disabled>
-                  Select your unit…
-                </option>
-                {unitOptions.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name} — {i.area.split(",")[0]}
-                  </option>
-                ))}
-              </select>
-              <Link href="/register" className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-600 hover:underline">
-                <Plus className="h-4 w-4" />
-                Register a new ETP unit
-              </Link>
-            </div>
-          )}
 
           {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">{error}</p>}
 
           <Button
-            onClick={mode === "signin" ? signIn : signUp}
+            onClick={signIn}
             disabled={entering}
             size="lg"
             className="mt-6 h-12 w-full gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-base font-semibold text-white hover:from-indigo-600/90 hover:to-violet-600/90"
           >
-            {entering ? "Entering…" : mode === "signin" ? "Sign In" : "Register & enter"}
+            {entering ? "Entering…" : "Sign In"}
             {!entering && <ArrowRight className="h-4 w-4" />}
           </Button>
 
-          {mode === "signin" ? (
-            <>
-              <p className="mt-4 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-500">
-                <span className="font-semibold text-slate-700">Demo accounts</span> — admin@rspcb.in / rspcb123 · etp@demo.in / demo123
-              </p>
-              <p className="mt-3 text-center text-sm text-slate-500">
-                New here?{" "}
-                <button type="button" onClick={() => { setMode("signup"); setError(""); }} className="font-semibold text-indigo-600 hover:underline">
-                  Register a unit
-                </button>
-              </p>
-            </>
-          ) : (
-            <p className="mt-4 text-center text-sm text-slate-500">
-              Already have an account?{" "}
-              <button type="button" onClick={() => { setMode("signin"); setError(""); }} className="font-semibold text-indigo-600 hover:underline">
-                Sign in
-              </button>
-            </p>
-          )}
+          <p className="mt-4 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Demo accounts</span> — admin@rspcb.in / rspcb123 · etp@demo.in / demo123
+          </p>
+          <p className="mt-3 text-center text-sm text-slate-500">
+            New here?{" "}
+            <Link href="/register" className="font-semibold text-indigo-600 hover:underline">
+              Register a unit
+            </Link>
+          </p>
         </div>
       </div>
     </div>
@@ -237,8 +155,6 @@ export default function LoginPage() {
 
 const inputCls =
   "h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-indigo-400";
-const selectCls =
-  "h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-400";
 
 function LField({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
