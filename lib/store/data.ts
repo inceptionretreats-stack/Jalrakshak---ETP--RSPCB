@@ -156,7 +156,7 @@ export const useDataStore = create<DataState>()(
         if (!input.hasPhoto) fired.push("missing-photo");
 
         const newAlerts: Alert[] = fired.map((type, idx) => ({
-          id: `AL-${Date.now().toString(36)}-${idx}`,
+          id: `AL-${id}-${idx}`,
           type,
           severity: ALERT_META[type].severity,
           industryId: input.industryId,
@@ -235,7 +235,7 @@ export const useDataStore = create<DataState>()(
         else if (ind && totalWaterIntake > ind.permittedKLD * 0.85) fired.push("high-flow");
 
         const newAlerts: Alert[] = fired.map((type, idx) => ({
-          id: `AL-${Date.now().toString(36)}-${idx}`,
+          id: `AL-${id}-${idx}`,
           type,
           severity: ALERT_META[type].severity,
           industryId: input.industryId,
@@ -369,7 +369,13 @@ export const useDataStore = create<DataState>()(
       },
 
       registerIndustry: (input) => {
-        const id = `IND-${String(get().industries.length + 1).padStart(3, "0")}`;
+        // Derive the next id from the highest existing IND-### number (not the
+        // array length) so ids never collide with seed ids or after a merge.
+        const maxNum = get().industries.reduce((max, i) => {
+          const n = parseInt(String(i.id).replace(/\D/g, ""), 10);
+          return Number.isFinite(n) && n > max ? n : max;
+        }, 0);
+        const id = `IND-${String(maxNum + 1).padStart(3, "0")}`;
         const score = 75;
         const industry: Industry = {
           id,

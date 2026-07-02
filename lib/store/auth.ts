@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { useDataStore } from "@/lib/store/data";
+import { remoteApply } from "@/lib/data/firestore-storage";
 import type { RoleId } from "@/lib/types";
 
 interface Session {
@@ -35,6 +37,14 @@ export const useAuthStore = create<AuthState>()((set) => ({
   login: (role, industryId = null) => set({ role, industryId, isAuthed: true, authReady: true }),
   logout: () => {
     void signOut(auth);
+    // Clear the shared dataset from memory WITHOUT persisting — a persist here
+    // would overwrite the shared state/app doc with the local seed.
+    remoteApply.active = true;
+    try {
+      useDataStore.getState().resetData();
+    } finally {
+      remoteApply.active = false;
+    }
     set({ uid: null, role: null, industryId: null, isAuthed: false });
   },
 }));

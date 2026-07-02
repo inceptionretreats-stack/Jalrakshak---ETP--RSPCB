@@ -10,6 +10,8 @@ import { ArrowLeft, Building2, Droplets, Check, Eye, EyeOff } from "lucide-react
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { JalRakshakLogo } from "@/components/shared/logo";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { useDataStore } from "@/lib/store/data";
 import { useAuthStore } from "@/lib/store/auth";
 import { useAccountsStore } from "@/lib/store/accounts";
@@ -50,6 +52,18 @@ export default function RegisterEtpPage() {
   const onSubmit = handleSubmit(async (values) => {
     const v = schema.parse(values);
     setSubmitting(true);
+    // 1) Create the account first so we're authenticated before touching the
+    //    shared dataset (the Firestore rules require auth to read/write state/app).
+    const acct = await signup({ name: v.ownerName, email: v.email, password: v.password, role: "etp", industryId: null });
+    if (!acct.ok) {
+      toast.error("Registration failed", { description: acct.error });
+      setSubmitting(false);
+      return;
+    }
+    // 2) Load the CURRENT shared dataset so we APPEND to it instead of
+    //    overwriting state/app with our local seed (which used to wipe other units).
+    await useDataStore.persist.rehydrate();
+    // 3) Append the new unit to the real data — this persists the merged dataset.
     const created = registerIndustry({
       name: v.name,
       ownerName: v.ownerName,
@@ -68,17 +82,12 @@ export default function RegisterEtpPage() {
       roStage3: v.roStage3,
       roStage4: v.roStage4,
     });
-    const acct = await signup({ name: v.ownerName, email: v.email, password: v.password, role: "etp", industryId: created.id });
-    if (!acct.ok) {
-      toast.error("Registration failed", { description: acct.error });
-      setSubmitting(false);
-      return;
+    // 4) Link the new account to its freshly-created industry id.
+    try {
+      await setDoc(doc(db, "users", acct.user.id), { industryId: created.id }, { merge: true });
+    } catch {
+      // best-effort — the session industryId is still set optimistically below
     }
-    // registerIndustry() above ran before sign-in, so its state/app write was
-    // rejected by the Firestore rules (which require auth). Now that signup()
-    // has authenticated us, re-persist so the new unit is actually saved to
-    // Firestore and survives a reload.
-    useDataStore.setState((s) => ({ ...s }));
     toast.success("ETP unit registered", { description: `${created.name} is now pending verification.` });
     login("etp", created.id);
     setTimeout(() => router.push("/dashboard"), 600);

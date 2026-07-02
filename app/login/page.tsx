@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, ShieldCheck, Activity, Lock, Droplets, Mail, KeyRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, ShieldCheck, Activity, Lock, Droplets, Mail, KeyRound, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JalRakshakLogo } from "@/components/shared/logo";
 import { useAuthStore } from "@/lib/store/auth";
@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [entering, setEntering] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   const go = (role: RoleId, industryId: string | null) => {
     setEntering(true);
@@ -122,7 +123,12 @@ export default function LoginPage() {
               <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className={inputCls} placeholder="you@unit.in" autoComplete="email" />
             </LField>
             <LField label="Password" icon={<KeyRound className="h-4 w-4" />}>
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" className={inputCls} placeholder="••••••••" autoComplete="current-password" />
+              <div className="relative">
+                <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? "text" : "password"} className={inputCls + " pr-10"} placeholder="••••••••" autoComplete="current-password" />
+                <button type="button" tabIndex={-1} onClick={() => setShowPw((s) => !s)} className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600" aria-label={showPw ? "Hide password" : "Show password"}>
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </LField>
           </div>
 
@@ -138,9 +144,15 @@ export default function LoginPage() {
             {!entering && <ArrowRight className="h-4 w-4" />}
           </Button>
 
-          <p className="mt-4 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-500">
-            <span className="font-semibold text-slate-700">Demo accounts</span> — admin@rspcb.in / rspcb123 · etp@demo.in / demo123
-          </p>
+          <div className="mt-4 space-y-1.5 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs text-slate-500">
+            <p className="font-semibold text-slate-700">Demo accounts</p>
+            <p>
+              <span className="font-semibold text-slate-600">Monitoring Body</span> — <span className="text-slate-400">Email:</span> admin@rspcb.in · <span className="text-slate-400">Password:</span> rspcb123
+            </p>
+            <p>
+              <span className="font-semibold text-slate-600">ETP Unit</span> — <span className="text-slate-400">Email:</span> etp@demo.in · <span className="text-slate-400">Password:</span> demo123
+            </p>
+          </div>
           <p className="mt-3 text-center text-sm text-slate-500">
             New here?{" "}
             <Link href="/register" className="font-semibold text-indigo-600 hover:underline">
