@@ -59,10 +59,6 @@ export function ScrollOverlay({
               Untreated Textile Wastewater
               <br className="hidden sm:block" /> <span className="text-rose-300">Harms Our Rivers</span>
             </h1>
-            <p className="mt-4 max-w-xl text-balance text-base text-white/85 sm:text-lg">
-              Scroll to watch monitored treatment turn pollution into clean,
-              recovered water.
-            </p>
           </motion.div>
 
           {/* clean */}
