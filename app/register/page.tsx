@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { ArrowLeft, Building2, Droplets, Check, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Building2, Droplets, Check, Eye, EyeOff, CheckCircle2, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { JalRakshakLogo } from "@/components/shared/logo";
@@ -15,15 +15,26 @@ import { db } from "@/lib/firebase";
 import { useDataStore } from "@/lib/store/data";
 import { useAuthStore } from "@/lib/store/auth";
 import { useAccountsStore } from "@/lib/store/accounts";
+import { cn } from "@/lib/utils";
+
+// Input transforms (applied on every keystroke).
+const alphaOnly = (v: string) => v.replace(/[^A-Za-z ]/g, "");
+const digitsOnly = (v: string) => v.replace(/\D/g, "").slice(0, 10);
+const capFirst = (v: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : v);
 
 const schema = z.object({
-  name: z.string().min(2, "Company name is required"),
-  ownerName: z.string().min(2, "Owner name is required"),
-  area: z.string().min(2, "Area is required"),
+  name: z.string().regex(/^[A-Za-z ]{2,}$/, "Company name — alphabets only"),
+  ownerName: z.string().regex(/^[A-Za-z ]{2,}$/, "Owner name — alphabets only"),
+  area: z.string().regex(/^[A-Za-z ]{2,}$/, "Area — alphabets only"),
   consentNumber: z.string().min(4, "Consent number required"),
-  mobile: z.string().min(8, "Valid mobile required"),
+  mobile: z.string().regex(/^\d{10}$/, "Enter a 10-digit mobile number"),
   email: z.string().regex(/^\S+@\S+\.\S+$/, "Valid email required"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z
+    .string()
+    .min(8, "At least 8 characters")
+    .regex(/[A-Za-z]/, "Add a letter")
+    .regex(/[0-9]/, "Add a number")
+    .regex(/[^A-Za-z0-9]/, "Add a special character"),
   etpCapacity: z.coerce.number().positive("Must be > 0"),
   maxEffluentGeneration: z.coerce.number().positive("Must be > 0"),
   roStage1: z.coerce.number().positive("Must be > 0"),
@@ -46,8 +57,29 @@ export default function RegisterEtpPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  // Wraps register() so a filtered field transforms its value on every keystroke.
+  const filtered = (key: "name" | "ownerName" | "area" | "mobile", transform: (v: string) => string) => {
+    const reg = register(key);
+    return {
+      ...reg,
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+        e.target.value = transform(e.target.value);
+        return reg.onChange(e);
+      },
+    };
+  };
+
+  const pw = watch("password") ?? "";
+  const pwChecks = [
+    { label: "At least 8 characters", ok: pw.length >= 8 },
+    { label: "Contains a letter", ok: /[A-Za-z]/.test(pw) },
+    { label: "Contains a number", ok: /[0-9]/.test(pw) },
+    { label: "Contains a special character", ok: /[^A-Za-z0-9]/.test(pw) },
+  ];
 
   const onSubmit = handleSubmit(async (values) => {
     const v = schema.parse(values);
@@ -123,33 +155,24 @@ export default function RegisterEtpPage() {
             </h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Company Name" error={errors.name?.message}>
-                <input
-                  {...register("name")}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    e.target.value = val.charAt(0).toUpperCase() + val.slice(1);
-                    register("name").onChange(e);
-                  }}
-                  className={inputCls}
-                  placeholder="e.g. Pali Road Processors"
-                />
+                <input {...filtered("name", (v) => capFirst(alphaOnly(v)))} className={inputCls} placeholder="e.g. Pali Road Processors" />
               </Field>
               <Field label="Owner Name" error={errors.ownerName?.message}>
-                <input {...register("ownerName")} className={inputCls} placeholder="Full name" />
+                <input {...filtered("ownerName", alphaOnly)} className={inputCls} placeholder="Full name" />
               </Field>
               <Field label="Area / Location" error={errors.area?.message}>
-                <input {...register("area")} className={inputCls} placeholder="Industrial area, zone" />
+                <input {...filtered("area", alphaOnly)} className={inputCls} placeholder="Industrial area or zone" />
               </Field>
               <Field label="Consent Number" error={errors.consentNumber?.message}>
                 <input {...register("consentNumber")} className={inputCls} placeholder="RPCB/CTO/2024/XXXXX" />
               </Field>
               <Field label="Mobile" error={errors.mobile?.message}>
-                <input {...register("mobile")} className={inputCls} placeholder="+91 ..." />
+                <input {...filtered("mobile", digitsOnly)} inputMode="numeric" maxLength={10} className={inputCls} placeholder="10-digit mobile number" />
               </Field>
               <Field label="Email" error={errors.email?.message}>
                 <input {...register("email")} className={inputCls} placeholder="plant@company.in" />
               </Field>
-              <Field label="Login Password" error={errors.password?.message}>
+              <Field label="Login Password">
                 <div className="relative">
                   <input
                     type={showPw ? "text" : "password"}
@@ -167,6 +190,14 @@ export default function RegisterEtpPage() {
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                <ul className="mt-2 space-y-1">
+                  {pwChecks.map((c) => (
+                    <li key={c.label} className={cn("flex items-center gap-1.5 text-xs", c.ok ? "text-emerald-600" : "text-slate-400")}>
+                      {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0" />}
+                      {c.label}
+                    </li>
+                  ))}
+                </ul>
               </Field>
             </div>
           </div>
