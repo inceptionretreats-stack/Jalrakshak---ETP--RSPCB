@@ -35,7 +35,8 @@ function CameraRig({ transition }: { transition: TransitionRef }) {
 export function RiverScene({ transition }: { transition: TransitionRef }) {
   return (
     <Canvas
-      gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+      shadows
+      gl={{ antialias: true, alpha: false, powerPreference: "high-performance", toneMappingExposure: 1.08 }}
       dpr={[1, 1.8]}
       camera={{ position: [0, 5.4, 22], fov: 40, near: 0.1, far: 140 }}
     >

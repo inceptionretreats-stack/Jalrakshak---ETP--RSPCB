@@ -13,7 +13,7 @@ import { Icon } from "@/components/shared/icon";
 import { useDataStore, selectMetrics } from "@/lib/store/data";
 import { buildEtpStageFlow } from "@/lib/data/etp-flow";
 import { ALERT_META } from "@/lib/constants";
-import { formatNumber, formatDate, timeAgo } from "@/lib/utils";
+import { formatNumber, formatDate, timeAgo, displayUnit } from "@/lib/utils";
 import type { FlowNode } from "@/lib/types";
 
 export function AdminOverview() {
@@ -44,8 +44,8 @@ export function AdminOverview() {
   // newest operator submissions across ETP water-balance and flow-meter readings
   const recentSubs = useMemo(() => {
     const subs = [
-      ...etpEntries.map((e) => ({ id: e.id, kind: "ETP", name: e.industryName, date: e.date, at: e.submittedAt, value: `Intake ${formatNumber(e.totalWaterIntake)} KL` })),
-      ...readings.map((r) => ({ id: r.id, kind: "Meter", name: r.industryName, date: r.date, at: r.submittedAt, value: `${r.meterPoint} ${formatNumber(r.difference)} ${r.unit}` })),
+      ...etpEntries.map((e) => ({ id: e.id, kind: "ETP", name: e.industryName, date: e.date, at: e.submittedAt, value: `Intake ${formatNumber(e.totalWaterIntake)} m³` })),
+      ...readings.map((r) => ({ id: r.id, kind: "Meter", name: r.industryName, date: r.date, at: r.submittedAt, value: `${r.meterPoint} ${formatNumber(r.difference)} ${displayUnit(r.unit)}` })),
     ];
     return subs.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
   }, [etpEntries, readings]);
@@ -166,7 +166,7 @@ export function AdminOverview() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-foreground">{a.industryName}</p>
-                <p className="text-xs text-muted-foreground">{a.meterPoint} · {formatNumber(a.difference)} {a.unit}</p>
+                <p className="text-xs text-muted-foreground">{a.meterPoint} · {formatNumber(a.difference)} {displayUnit(a.unit)}</p>
               </div>
               <StatusBadge status={a.stage} dot={false} />
             </div>

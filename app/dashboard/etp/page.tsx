@@ -132,7 +132,7 @@ function EtpDetail({ ind, entries, onBack }: { ind: Industry; entries: EtpEntry[
       header: "Total Intake",
       cell: ({ row }) => (
         <span className="whitespace-nowrap font-mono text-sm font-bold text-foreground">
-          {formatNumber(row.original.totalWaterIntake)} <span className="text-xs font-normal text-muted-foreground">KL</span>
+          {formatNumber(row.original.totalWaterIntake)} <span className="text-xs font-normal text-muted-foreground">m³</span>
         </span>
       ),
     },
@@ -143,15 +143,15 @@ function EtpDetail({ ind, entries, onBack }: { ind: Industry; entries: EtpEntry[
     if (!mine.length) return;
     const rows = mine.map((e) => ({
       Date: e.date,
-      "Fresh Water (KL)": e.freshWaterConsumption,
-      "ETP Inlet (KL)": e.etpInlet,
-      "ETP Outlet (KL)": e.etpOutlet,
-      "ETP Reuse (KL)": e.etpReuse,
-      "RO Inlet (KL)": e.roInlet,
-      "RO Reject (KL)": e.roReject,
-      "RO Permeate (KL)": e.roPermeate,
-      "Sludge to TSDF (KL)": e.sludgeToTSDF,
-      "Total Water Intake (KL)": e.totalWaterIntake,
+      "Fresh Water (m³)": e.freshWaterConsumption,
+      "ETP Inlet (m³)": e.etpInlet,
+      "ETP Outlet (m³)": e.etpOutlet,
+      "ETP Reuse (m³)": e.etpReuse,
+      "RO Inlet (m³)": e.roInlet,
+      "RO Reject (m³)": e.roReject,
+      "RO Permeate (m³)": e.roPermeate,
+      "Sludge to TSDF (m³)": e.sludgeToTSDF,
+      "Total Water Intake (m³)": e.totalWaterIntake,
       Status: e.status,
       "Submitted At": e.submittedAt,
     }));
@@ -198,7 +198,7 @@ function EtpDetail({ ind, entries, onBack }: { ind: Industry; entries: EtpEntry[
           ))}
         </div>
 
-        {/* latest water balance (KL) */}
+        {/* latest water balance (m³) */}
         <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3">
           <div className="flex items-center justify-between">
             <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
@@ -262,7 +262,7 @@ function EtpDetail({ ind, entries, onBack }: { ind: Industry; entries: EtpEntry[
 function NumCell({ v }: { v: number }) {
   return (
     <span className="whitespace-nowrap font-mono text-sm text-foreground">
-      {formatNumber(v)} <span className="text-xs font-normal text-muted-foreground">KL</span>
+      {formatNumber(v)} <span className="text-xs font-normal text-muted-foreground">m³</span>
     </span>
   );
 }
@@ -273,7 +273,7 @@ function Mini({ label, value, accent }: { label: string; value?: number; accent:
       <p className="font-mono text-sm font-bold" style={{ color: accent }}>
         {value != null ? formatNumber(value) : "—"}
       </p>
-      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{label} (KL)</p>
+      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{label} (m³)</p>
     </div>
   );
 }

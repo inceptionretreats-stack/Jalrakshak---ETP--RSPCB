@@ -128,7 +128,7 @@ export default function EtpEntryPage() {
       sludgeToTSDF: v.sludgeToTSDF,
     });
     toast.success("Water-balance entry submitted", {
-      description: `Total intake ${formatNumber(entry.totalWaterIntake)} KL · sent for verification${alerts.length ? ` · ${alerts.length} alert(s)` : ""}.`,
+      description: `Total intake ${formatNumber(entry.totalWaterIntake)} m³ · sent for verification${alerts.length ? ` · ${alerts.length} alert(s)` : ""}.`,
     });
     setSuccess({ total: entry.totalWaterIntake, alerts });
   });
@@ -147,12 +147,12 @@ export default function EtpEntryPage() {
       <PageHeader
         eyebrow={`${industry.name} · ETP Logbook`}
         title="ETP Water-Balance Entry"
-        description="Record today's water balance. All values are in kilolitres (KL). Total Water Intake is auto-calculated and sent for verification."
+        description="Record today's water balance. All values are in cubic metres (m³). Total Water Intake is auto-calculated and sent for verification."
       />
 
       <form onSubmit={onSubmit} className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
         <div className="space-y-5 rounded-2xl border border-border bg-card p-4 sm:p-6">
-          <SectionTitle icon={<Droplets className="h-4 w-4" />}>Daily Water Balance (KL)</SectionTitle>
+          <SectionTitle icon={<Droplets className="h-4 w-4" />}>Daily Water Balance (m³)</SectionTitle>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Date (today · locked)">
               <div className="flex h-10 items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 text-sm text-foreground">
@@ -169,7 +169,7 @@ export default function EtpEntryPage() {
               f.name === "etpInlet" ? (
                 <Field
                   key={f.name}
-                  label={`${f.label} (KL) · max ${formatNumber(etpCapacity)} KLD`}
+                  label={`${f.label} (m³) · max ${formatNumber(etpCapacity)} KLD`}
                   error={errors[f.name]?.message ?? (etpInletExceeded ? `Exceeds sanctioned ETP capacity (${formatNumber(etpCapacity)} KLD). You cannot proceed — the Monitoring Body has been notified.` : undefined)}
                 >
                   <input
@@ -184,7 +184,7 @@ export default function EtpEntryPage() {
                   />
                 </Field>
               ) : (
-                <Field key={f.name} label={`${f.label} (KL)`} error={errors[f.name]?.message}>
+                <Field key={f.name} label={`${f.label} (m³)`} error={errors[f.name]?.message}>
                   <input
                     type="number"
                     step="any"
@@ -196,10 +196,10 @@ export default function EtpEntryPage() {
                 </Field>
               ),
             )}
-            <Field label="Total Water Intake (KL · auto)">
+            <Field label="Total Water Intake (m³ · auto)">
               <div className="flex h-10 items-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-3 font-mono text-sm font-bold text-primary">
                 <Calculator className="h-4 w-4" />
-                {formatNumber(totalWaterIntake)} KL
+                {formatNumber(totalWaterIntake)} m³
               </div>
             </Field>
           </div>
@@ -214,9 +214,9 @@ export default function EtpEntryPage() {
             <h3 className="font-display text-lg font-bold text-foreground">Total Water Intake</h3>
             <div className="rounded-xl border border-border bg-muted/30 p-4">
               <p className="font-mono text-3xl font-bold text-primary">
-                {formatNumber(totalWaterIntake)} <span className="text-base font-medium text-muted-foreground">KL</span>
+                {formatNumber(totalWaterIntake)} <span className="text-base font-medium text-muted-foreground">m³</span>
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">Fresh {formatNumber(fresh)} + Reuse {formatNumber(reuse)} + Permeate {formatNumber(permeate)} KL</p>
+              <p className="mt-1 text-xs text-muted-foreground">Fresh {formatNumber(fresh)} + Reuse {formatNumber(reuse)} + Permeate {formatNumber(permeate)} m³</p>
               {industry && <p className="mt-2 text-xs text-muted-foreground">Permitted: <span className="font-semibold text-foreground">{formatNumber(industry.permittedKLD)} KLD</span></p>}
             </div>
 
@@ -226,7 +226,7 @@ export default function EtpEntryPage() {
                 <div className="flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600">
                   <Ban className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>
-                    <span className="font-semibold">Entry blocked.</span> ETP Inlet {formatNumber(etpInletVal)} KL exceeds the sanctioned ETP capacity ({formatNumber(etpCapacity)} KLD). The Monitoring Body has been notified — reduce ETP Inlet to continue.
+                    <span className="font-semibold">Entry blocked.</span> ETP Inlet {formatNumber(etpInletVal)} m³ exceeds the sanctioned ETP capacity ({formatNumber(etpCapacity)} KLD). The Monitoring Body has been notified — reduce ETP Inlet to continue.
                   </span>
                 </div>
               ) : predicted.length === 0 ? (
@@ -259,7 +259,7 @@ export default function EtpEntryPage() {
                   <p className="font-semibold">Submitted for verification</p>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Total Water Intake {formatNumber(success.total)} KL recorded. Track it in{" "}
+                  Total Water Intake {formatNumber(success.total)} m³ recorded. Track it in{" "}
                   <span className="font-semibold text-foreground">your dashboard</span>.
                 </p>
                 {success.alerts.length > 0 && <p className="mt-2 text-xs text-amber-500">{success.alerts.length} alert(s) raised.</p>}

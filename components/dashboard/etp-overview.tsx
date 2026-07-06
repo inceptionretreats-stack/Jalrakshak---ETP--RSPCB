@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Gauge, Clock, Droplets, Waves, Recycle, ArrowRight, Trash2, ClipboardList, Download } from "lucide-react";
+import { Plus, Gauge, Clock, Droplets, Waves, Recycle, ArrowRight, ArrowUp, ArrowDown, Trash2, ClipboardList, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PipelineFlow } from "@/components/dashboard/pipeline-flow";
@@ -32,6 +32,10 @@ export function EtpOverview() {
     [etpEntries, industryId],
   );
   const latest = mine[0];
+  const prev = mine[1];
+  // Rolling "today vs yesterday": today's latest total intake minus the previous
+  // entry's. As new entries arrive, today's value naturally becomes yesterday's.
+  const diff = latest && prev ? latest.totalWaterIntake - prev.totalWaterIntake : null;
   const myAlerts = alerts.filter((a) => a.industryId === industryId && a.status === "active").slice(0, 5);
   const pending = mine.filter((e) => e.status === "pending").length;
   const myCompliance = compliance.find((c) => c.industryId === industryId);
@@ -70,7 +74,7 @@ export function EtpOverview() {
       header: "Total Intake",
       cell: ({ row }) => (
         <span className="whitespace-nowrap font-mono text-sm font-bold text-foreground">
-          {formatNumber(row.original.totalWaterIntake)} <span className="text-xs font-normal text-muted-foreground">KL</span>
+          {formatNumber(row.original.totalWaterIntake)} <span className="text-xs font-normal text-muted-foreground">m³</span>
         </span>
       ),
     },
@@ -81,15 +85,15 @@ export function EtpOverview() {
     if (!mine.length) return;
     const rows = mine.map((e) => ({
       Date: e.date,
-      "Fresh Water (KL)": e.freshWaterConsumption,
-      "ETP Inlet (KL)": e.etpInlet,
-      "ETP Outlet (KL)": e.etpOutlet,
-      "ETP Reuse (KL)": e.etpReuse,
-      "RO Inlet (KL)": e.roInlet,
-      "RO Reject (KL)": e.roReject,
-      "RO Permeate (KL)": e.roPermeate,
-      "Sludge to TSDF (KL)": e.sludgeToTSDF,
-      "Total Water Intake (KL)": e.totalWaterIntake,
+      "Fresh Water (m³)": e.freshWaterConsumption,
+      "ETP Inlet (m³)": e.etpInlet,
+      "ETP Outlet (m³)": e.etpOutlet,
+      "ETP Reuse (m³)": e.etpReuse,
+      "RO Inlet (m³)": e.roInlet,
+      "RO Reject (m³)": e.roReject,
+      "RO Permeate (m³)": e.roPermeate,
+      "Sludge to TSDF (m³)": e.sludgeToTSDF,
+      "Total Water Intake (m³)": e.totalWaterIntake,
       Status: e.status,
       "Submitted At": e.submittedAt,
     }));
@@ -137,15 +141,38 @@ export function EtpOverview() {
         </div>
       </div>
 
-      {/* total water intake + balance */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+      {/* total water intake + today-vs-yesterday + balance */}
+      <div className="grid gap-4 lg:grid-cols-[1fr_1fr_2fr]">
         <div className="rounded-2xl border border-border bg-card p-5">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Water Intake (latest)</p>
           <p className="mt-2 font-mono text-4xl font-bold text-primary">
-            {latest ? formatNumber(latest.totalWaterIntake) : "—"} <span className="text-base font-medium text-muted-foreground">KL</span>
+            {latest ? formatNumber(latest.totalWaterIntake) : "—"} <span className="text-base font-medium text-muted-foreground">m³</span>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">= Fresh Water + ETP Reuse + RO Permeate</p>
           {latest && <p className="mt-3 text-xs text-muted-foreground">Recorded {formatDate(latest.date)}</p>}
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Today vs Yesterday</p>
+          {diff != null ? (
+            <p
+              className="mt-2 flex items-center gap-1.5 font-mono text-4xl font-bold"
+              style={{ color: diff > 0 ? "#e11d48" : diff < 0 ? "#059669" : undefined }}
+            >
+              {diff > 0 ? <ArrowUp className="h-7 w-7" /> : diff < 0 ? <ArrowDown className="h-7 w-7" /> : null}
+              {diff > 0 ? "+" : diff < 0 ? "−" : ""}
+              {formatNumber(Math.abs(diff))} <span className="text-base font-medium text-muted-foreground">m³</span>
+            </p>
+          ) : (
+            <p className="mt-2 font-mono text-4xl font-bold text-muted-foreground">—</p>
+          )}
+          <p className="mt-1 text-xs text-muted-foreground">Change in total intake vs the previous entry</p>
+          {prev ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Yesterday: {formatNumber(prev.totalWaterIntake)} m³ · {formatDate(prev.date)}
+            </p>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">Awaiting a second entry</p>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {balance.map((b) => (
@@ -154,7 +181,7 @@ export function EtpOverview() {
                 {b.icon ? <b.icon className="h-4 w-4" /> : <Droplets className="h-4 w-4" />}
               </span>
               <p className="mt-3 font-mono text-xl font-bold text-foreground sm:text-2xl">
-                {b.value != null ? formatNumber(b.value) : "—"} <span className="text-xs font-medium text-muted-foreground">KL</span>
+                {b.value != null ? formatNumber(b.value) : "—"} <span className="text-xs font-medium text-muted-foreground">m³</span>
               </p>
               <p className="text-xs text-muted-foreground">{b.label}</p>
             </div>

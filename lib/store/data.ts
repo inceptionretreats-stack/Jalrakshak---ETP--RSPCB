@@ -298,7 +298,7 @@ export const useDataStore = create<DataState>()(
           industryName: ind.name,
           cetpId: null,
           title: ALERT_META["capacity-exceeded"].label,
-          message: `ETP Inlet ${etpInlet} KL exceeds sanctioned ETP capacity ${ind.etpCapacity} KLD for ${ind.name}.`,
+          message: `ETP Inlet ${etpInlet} m³ exceeds sanctioned ETP capacity ${ind.etpCapacity} KLD for ${ind.name}.`,
           createdAt,
           status: "active",
           relatedReadingId: null,

@@ -13,6 +13,9 @@ export function formatKLD(n: number) {
   return `${formatNumber(n)} KLD`;
 }
 
+/** Display label for a stored unit — water volume "KL" is shown as "m³" (energy "kWh" unchanged). */
+export const displayUnit = (u: string) => (u === "KL" ? "m³" : u);
+
 export function compactNumber(n: number) {
   return new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }

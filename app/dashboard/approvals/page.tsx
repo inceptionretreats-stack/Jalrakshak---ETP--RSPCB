@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useDataStore } from "@/lib/store/data";
 import { useAuthStore } from "@/lib/store/auth";
 import { ALERT_META, ROLES } from "@/lib/constants";
-import { formatNumber, formatDate, cn } from "@/lib/utils";
+import { formatNumber, formatDate, cn, displayUnit } from "@/lib/utils";
 
 const TABS = [
   { key: "queue", label: "Queue" },
@@ -114,7 +114,7 @@ export default function ApprovalsPage() {
                   <div className="flex flex-1 flex-col justify-center rounded-xl border border-border bg-muted/30 px-4">
                     <p className="text-xs text-muted-foreground">Difference</p>
                     <p className="font-mono text-2xl font-bold text-primary">
-                      {formatNumber(a.difference)} <span className="text-sm font-medium text-muted-foreground">{a.unit}</span>
+                      {formatNumber(a.difference)} <span className="text-sm font-medium text-muted-foreground">{displayUnit(a.unit)}</span>
                     </p>
                   </div>
                 </div>

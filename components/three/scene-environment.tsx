@@ -66,7 +66,18 @@ function Atmosphere({ transition }: { transition: TransitionRef }) {
   return (
     <>
       <ambientLight ref={amb} intensity={0.55} />
-      <directionalLight ref={dir} position={[8, 13, 6]} intensity={0.55} color="#f5e7c8" />
+      <directionalLight
+        ref={dir}
+        position={[10, 16, 8]}
+        intensity={0.55}
+        color="#f5e7c8"
+        castShadow
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.02}
+      >
+        <orthographicCamera attach="shadow-camera" args={[-24, 24, 24, -24, 0.5, 70]} />
+      </directionalLight>
       <hemisphereLight intensity={0.45} color="#bfe6ff" groundColor="#5f6a45" />
     </>
   );
@@ -83,10 +94,17 @@ function Sun({ transition }: { transition: TransitionRef }) {
     mat.current.opacity = 0.5 + transition.current.value * 0.5;
   });
   return (
-    <mesh position={[15, 10.5, -26]}>
-      <circleGeometry args={[3, 40]} />
-      <meshBasicMaterial ref={mat} color="#dccfa6" transparent opacity={0.5} fog={false} />
-    </mesh>
+    <group position={[15, 10.5, -26]}>
+      {/* soft halo — fakes bloom (no post-processing available under Turbopack) */}
+      <mesh position={[0, 0, -0.2]}>
+        <circleGeometry args={[6, 48]} />
+        <meshBasicMaterial color="#fff4cf" transparent opacity={0.16} fog={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
+      <mesh>
+        <circleGeometry args={[3, 40]} />
+        <meshBasicMaterial ref={mat} color="#dccfa6" transparent opacity={0.5} fog={false} />
+      </mesh>
+    </group>
   );
 }
 
@@ -155,70 +173,157 @@ function Land({ transition }: { transition: TransitionRef }) {
           />
         </mesh>
       ))}
+
+      {/* low-poly rocks along the near shoreline */}
+      {([[-7, -0.3, 0], [-2, 0.4, 1], [4, 0, 2], [9, 0.5, 0], [-11, 0.2, 1]] as const).map(([x, z, k], i) => (
+        <mesh key={i} position={[x, BANK_Y + 0.16, z]} rotation={[0.3 * i, 0.7 * i, 0.1 * i]} castShadow receiveShadow>
+          <dodecahedronGeometry args={[0.34 + k * 0.14, 0]} />
+          <meshStandardMaterial color="#7c7f88" roughness={1} flatShading />
+        </mesh>
+      ))}
     </group>
   );
 }
 
 /* ---------------- Factory + smoke ---------------- */
+const HALL = { x: -11.5, w: 7, h: 3.4, d: 3.4, z: -4 };
+const HALL_T = BANK_Y + 0.5; // top of the plinth = base of the hall
+
 function Factory({ transition }: { transition: TransitionRef }) {
   const smoke = useRef<THREE.Points>(null);
-  const count = 130;
-  const chimneys = useMemo(() => [[-12.6, 2.4, -4], [-10.8, 3, -4.2]], []);
+  const count = 90;
+  const chimneyTops = useMemo<[number, number, number][]>(
+    () => [
+      [-13.3, BANK_Y + 4.3, -5],
+      [-11.6, BANK_Y + 4.3, -5.2],
+    ],
+    [],
+  );
   const { positions, speeds } = useMemo(() => {
     const positions = new Float32Array(count * 3);
     const speeds = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      const ch = chimneys[i % chimneys.length];
-      positions[i * 3] = ch[0] + (Math.random() - 0.5) * 1.2;
-      positions[i * 3 + 1] = ch[1] + Math.random() * 7;
-      positions[i * 3 + 2] = ch[2] + (Math.random() - 0.5) * 1.2;
-      speeds[i] = 0.4 + Math.random() * 0.8;
+      const ch = chimneyTops[i % chimneyTops.length];
+      positions[i * 3] = ch[0] + (Math.random() - 0.5) * 0.9;
+      positions[i * 3 + 1] = ch[1] + Math.random() * 6;
+      positions[i * 3 + 2] = ch[2] + (Math.random() - 0.5) * 0.9;
+      speeds[i] = 0.35 + Math.random() * 0.7;
     }
     return { positions, speeds };
-  }, [chimneys]);
+  }, [chimneyTops]);
 
   useFrame((_, delta) => {
     const p = smoke.current;
     if (!p) return;
     const arr = p.geometry.attributes.position.array as Float32Array;
     for (let i = 0; i < count; i++) {
-      arr[i * 3 + 1] += speeds[i] * delta * 1.3;
-      arr[i * 3] += Math.sin(arr[i * 3 + 1] + i) * delta * 0.18;
-      if (arr[i * 3 + 1] > 11) arr[i * 3 + 1] = 2.4;
+      arr[i * 3 + 1] += speeds[i] * delta * 1.1;
+      arr[i * 3] += Math.sin(arr[i * 3 + 1] + i) * delta * 0.16;
+      if (arr[i * 3 + 1] > BANK_Y + 13) arr[i * 3 + 1] = BANK_Y + 4.4;
     }
     p.geometry.attributes.position.needsUpdate = true;
-    (p.material as THREE.PointsMaterial).opacity = Math.max(0, (1 - transition.current.value) * 0.5);
+    (p.material as THREE.PointsMaterial).opacity = Math.max(0, (1 - transition.current.value) * 0.42);
   });
 
-  const Building = ({ x, w, h, d = 2.4 }: { x: number; w: number; h: number; d?: number }) => (
-    <mesh position={[x, BANK_Y + h / 2, -4]} castShadow>
-      <boxGeometry args={[w, h, d]} />
-      <meshStandardMaterial color="#8f95a3" roughness={0.85} flatShading />
-    </mesh>
-  );
+  const windows: [number, number][] = [];
+  for (let r = 0; r < 2; r++) for (let col = 0; col < 5; col++) windows.push([-14 + col * 1.25, HALL_T + 0.7 + r * 1.2]);
 
   return (
     <group>
-      <Building x={-12.8} w={3.4} h={4.4} />
-      <Building x={-10.4} w={2.6} h={3.1} />
-      <Building x={-8.5} w={2} h={2.3} d={1.8} />
-      {/* roof gable */}
-      <mesh position={[-12.8, BANK_Y + 4.4, -4]} rotation={[0, 0, Math.PI / 4]}>
-        <boxGeometry args={[1.7, 1.7, 2.45]} />
-        <meshStandardMaterial color="#727a8a" roughness={0.9} flatShading />
+      {/* plinth */}
+      <mesh position={[HALL.x, BANK_Y + 0.25, HALL.z]} castShadow receiveShadow>
+        <boxGeometry args={[HALL.w + 0.6, 0.5, HALL.d + 0.5]} />
+        <meshStandardMaterial color="#6a6f7a" roughness={0.9} />
       </mesh>
-      {/* chimneys */}
-      {chimneys.map((ch, i) => (
-        <mesh key={i} position={[ch[0], ch[1] - 1.1, ch[2]]} castShadow>
-          <cylinderGeometry args={[0.32, 0.42, 2.8, 14]} />
-          <meshStandardMaterial color="#5f646f" roughness={0.95} />
+
+      {/* main weaving hall */}
+      <mesh position={[HALL.x, HALL_T + HALL.h / 2, HALL.z]} castShadow receiveShadow>
+        <boxGeometry args={[HALL.w, HALL.h, HALL.d]} />
+        <meshStandardMaterial color="#cdc7ba" roughness={0.92} />
+      </mesh>
+
+      {/* front window rows */}
+      {windows.map(([wx, wy], i) => (
+        <mesh key={i} position={[wx, wy, HALL.z + HALL.d / 2 + 0.02]}>
+          <boxGeometry args={[0.62, 0.72, 0.08]} />
+          <meshStandardMaterial color="#26323f" roughness={0.25} metalness={0.15} emissive="#33506b" emissiveIntensity={0.35} />
         </mesh>
       ))}
+
+      {/* sawtooth north-light roof (classic textile mill) */}
+      {[0, 1, 2, 3, 4].map((j) => (
+        <group key={j} position={[-14.3 + j * 1.5, HALL_T + HALL.h, HALL.z]}>
+          <mesh position={[0, 0.42, 0]} rotation={[0, 0, -0.62]} castShadow>
+            <boxGeometry args={[1.5, 0.12, HALL.d + 0.1]} />
+            <meshStandardMaterial color="#98a1b0" roughness={0.5} metalness={0.35} flatShading />
+          </mesh>
+          <mesh position={[-0.66, 0.42, 0]}>
+            <boxGeometry args={[0.1, 0.86, HALL.d + 0.1]} />
+            <meshStandardMaterial color="#7fd4e6" roughness={0.2} metalness={0.1} emissive="#22d3ee" emissiveIntensity={0.3} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* secondary lower block */}
+      <mesh position={[-7.4, HALL_T + 1.1, -4.4]} castShadow receiveShadow>
+        <boxGeometry args={[2.6, 2.2, 2.8]} />
+        <meshStandardMaterial color="#bcb6a9" roughness={0.92} />
+      </mesh>
+
+      {/* elevated water tank on legs */}
+      <group position={[-6.4, 0, -5.2]}>
+        {([[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]] as const).map(([lx, lz], i) => (
+          <mesh key={i} position={[lx, BANK_Y + 1.1, lz]} castShadow>
+            <cylinderGeometry args={[0.08, 0.08, 2.2, 6]} />
+            <meshStandardMaterial color="#7f8895" roughness={0.6} metalness={0.4} />
+          </mesh>
+        ))}
+        <mesh position={[0, BANK_Y + 2.8, 0]} castShadow>
+          <cylinderGeometry args={[0.95, 0.95, 1.2, 20]} />
+          <meshStandardMaterial color="#9aa3b2" roughness={0.45} metalness={0.35} />
+        </mesh>
+        <mesh position={[0, BANK_Y + 3.65, 0]} castShadow>
+          <coneGeometry args={[1.0, 0.7, 20]} />
+          <meshStandardMaterial color="#8792a1" roughness={0.5} metalness={0.3} />
+        </mesh>
+      </group>
+
+      {/* silo */}
+      <group position={[-9.2, 0, -5.6]}>
+        <mesh position={[0, BANK_Y + 1.7, 0]} castShadow>
+          <cylinderGeometry args={[0.7, 0.7, 3.4, 20]} />
+          <meshStandardMaterial color="#c7ccd4" roughness={0.6} metalness={0.2} />
+        </mesh>
+        <mesh position={[0, BANK_Y + 3.75, 0]} castShadow>
+          <coneGeometry args={[0.78, 0.7, 20]} />
+          <meshStandardMaterial color="#aab2bd" roughness={0.6} metalness={0.2} />
+        </mesh>
+      </group>
+
+      {/* chimneys — taller, with hazard band + cap */}
+      {chimneyTops.map((ch, i) => (
+        <group key={i} position={[ch[0], BANK_Y, ch[2]]}>
+          <mesh position={[0, 2.15, 0]} castShadow>
+            <cylinderGeometry args={[0.3, 0.44, 4.3, 16]} />
+            <meshStandardMaterial color="#565b66" roughness={0.9} metalness={0.15} />
+          </mesh>
+          <mesh position={[0, 3.5, 0]}>
+            <cylinderGeometry args={[0.33, 0.33, 0.42, 16]} />
+            <meshStandardMaterial color="#d1495b" roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 4.32, 0]} castShadow>
+            <cylinderGeometry args={[0.46, 0.4, 0.24, 16]} />
+            <meshStandardMaterial color="#3f434d" roughness={0.8} metalness={0.2} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* softened smoke, fades out as the water cleans */}
       <points ref={smoke}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         </bufferGeometry>
-        <pointsMaterial size={1.25} color="#74746c" transparent opacity={0.5} depthWrite={false} sizeAttenuation />
+        <pointsMaterial size={0.95} color="#8a897f" transparent opacity={0.42} depthWrite={false} sizeAttenuation />
       </points>
     </group>
   );
@@ -295,6 +400,11 @@ function Pipeline({ transition }: { transition: TransitionRef }) {
       {/* nodes */}
       {NODES.map((n, i) => (
         <group key={n.key} position={[n.x, PIPE_Y + 0.5, PIPE_Z]}>
+          {/* base plinth */}
+          <mesh position={[0, -0.62, 0]} castShadow receiveShadow>
+            <boxGeometry args={[1.35, 0.26, 1.15]} />
+            <meshStandardMaterial color="#4b5563" roughness={0.8} />
+          </mesh>
           <mesh castShadow>
             <boxGeometry args={[1.15, 1, 0.95]} />
             <meshStandardMaterial
@@ -305,6 +415,11 @@ function Pipeline({ transition }: { transition: TransitionRef }) {
               roughness={0.5}
               flatShading
             />
+          </mesh>
+          {/* small tank/stack detail so each node reads as equipment */}
+          <mesh position={[0.28, 0.72, 0]} castShadow>
+            <cylinderGeometry args={[0.2, 0.2, 0.5, 12]} />
+            <meshStandardMaterial color="#9aa3b2" roughness={0.4} metalness={0.4} />
           </mesh>
           <Html position={[0, 1.05, 0]} center distanceFactor={13} zIndexRange={[8, 0]} pointerEvents="none">
             <span className="select-none whitespace-nowrap rounded-md bg-white/95 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-slate-700 shadow-sm">
@@ -325,9 +440,11 @@ function Pipeline({ transition }: { transition: TransitionRef }) {
   );
 }
 
-/* ---------------- Trees ---------------- */
+/* ---------------- Trees (trunk + layered pine) ---------------- */
 function Trees({ transition }: { transition: TransitionRef }) {
-  const foliage = useRef<THREE.InstancedMesh>(null);
+  const trunk = useRef<THREE.InstancedMesh>(null);
+  const lower = useRef<THREE.InstancedMesh>(null);
+  const upper = useRef<THREE.InstancedMesh>(null);
   const count = 20;
   const data = useMemo(
     () =>
@@ -336,7 +453,7 @@ function Trees({ transition }: { transition: TransitionRef }) {
         return {
           x: (right ? 1 : -1) * (10 + Math.random() * 8),
           z: -3 - Math.random() * 7,
-          scale: 0.8 + Math.random() * 1,
+          scale: 0.7 + Math.random() * 0.9,
           phase: Math.random() * 6,
         };
       }),
@@ -344,25 +461,42 @@ function Trees({ transition }: { transition: TransitionRef }) {
   );
   const dummy = useMemo(() => new THREE.Object3D(), []);
   useFrame((state) => {
-    const m = foliage.current;
-    if (!m) return;
+    if (!trunk.current || !lower.current || !upper.current) return;
     const grow = THREE.MathUtils.smoothstep(transition.current.value, 0.25, 1);
     data.forEach((d, i) => {
       const s = d.scale * grow;
       const sway = Math.sin(state.clock.elapsedTime * 0.9 + d.phase) * 0.04;
-      dummy.position.set(d.x, BANK_Y + s * 1.2, d.z);
-      dummy.rotation.set(0, 0, sway);
-      dummy.scale.set(Math.max(0.0001, s), Math.max(0.0001, s * 1.6), Math.max(0.0001, s));
-      dummy.updateMatrix();
-      m.setMatrixAt(i, dummy.matrix);
+      const place = (mesh: THREE.InstancedMesh, yOff: number) => {
+        dummy.position.set(d.x, BANK_Y + yOff * s, d.z);
+        dummy.rotation.set(0, 0, sway);
+        const c = Math.max(0.0001, s);
+        dummy.scale.set(c, c, c);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      };
+      place(trunk.current!, 0.45); // trunk (geo h 0.9)
+      place(lower.current!, 1.7); // lower foliage
+      place(upper.current!, 2.75); // upper foliage
     });
-    m.instanceMatrix.needsUpdate = true;
+    trunk.current.instanceMatrix.needsUpdate = true;
+    lower.current.instanceMatrix.needsUpdate = true;
+    upper.current.instanceMatrix.needsUpdate = true;
   });
   return (
-    <instancedMesh ref={foliage} args={[undefined, undefined, count]} castShadow>
-      <coneGeometry args={[1, 2.5, 9]} />
-      <meshStandardMaterial color="#2f7d33" roughness={0.85} flatShading />
-    </instancedMesh>
+    <group>
+      <instancedMesh ref={trunk} args={[undefined, undefined, count]} castShadow>
+        <cylinderGeometry args={[0.12, 0.16, 0.9, 6]} />
+        <meshStandardMaterial color="#6b4a2f" roughness={0.9} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={lower} args={[undefined, undefined, count]} castShadow>
+        <coneGeometry args={[1.05, 1.9, 10]} />
+        <meshStandardMaterial color="#2f7d33" roughness={0.85} flatShading />
+      </instancedMesh>
+      <instancedMesh ref={upper} args={[undefined, undefined, count]} castShadow>
+        <coneGeometry args={[0.75, 1.5, 10]} />
+        <meshStandardMaterial color="#3f9a45" roughness={0.85} flatShading />
+      </instancedMesh>
+    </group>
   );
 }
 
