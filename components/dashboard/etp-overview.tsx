@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Gauge, Clock, Droplets, Waves, Recycle, ArrowRight, ArrowUp, ArrowDown, Trash2, ClipboardList, Download } from "lucide-react";
+import { Plus, Gauge, Clock, Droplets, Waves, Recycle, ArrowRight, Trash2, ClipboardList, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PipelineFlow } from "@/components/dashboard/pipeline-flow";
@@ -152,27 +152,31 @@ export function EtpOverview() {
           {latest && <p className="mt-3 text-xs text-muted-foreground">Recorded {formatDate(latest.date)}</p>}
         </div>
         <div className="rounded-2xl border border-border bg-card p-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Today vs Yesterday</p>
-          {diff != null ? (
-            <p
-              className="mt-2 flex items-center gap-1.5 font-mono text-4xl font-bold"
-              style={{ color: diff > 0 ? "#e11d48" : diff < 0 ? "#059669" : undefined }}
-            >
-              {diff > 0 ? <ArrowUp className="h-7 w-7" /> : diff < 0 ? <ArrowDown className="h-7 w-7" /> : null}
-              {diff > 0 ? "+" : diff < 0 ? "−" : ""}
-              {formatNumber(Math.abs(diff))} <span className="text-base font-medium text-muted-foreground">m³</span>
-            </p>
-          ) : (
-            <p className="mt-2 font-mono text-4xl font-bold text-muted-foreground">—</p>
-          )}
-          <p className="mt-1 text-xs text-muted-foreground">Change in total intake vs the previous entry</p>
-          {prev ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Yesterday: {formatNumber(prev.totalWaterIntake)} m³ · {formatDate(prev.date)}
-            </p>
-          ) : (
-            <p className="mt-3 text-xs text-muted-foreground">Awaiting a second entry</p>
-          )}
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total Water Intake</p>
+          <div className="mt-3 space-y-2.5 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Today</span>
+              <span className="font-mono font-bold text-foreground">
+                {latest ? formatNumber(latest.totalWaterIntake) : "—"} <span className="text-xs font-normal text-muted-foreground">m³</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Yesterday</span>
+              <span className="font-mono font-bold text-foreground">
+                {prev ? formatNumber(prev.totalWaterIntake) : "—"} <span className="text-xs font-normal text-muted-foreground">m³</span>
+              </span>
+            </div>
+            <div className="flex items-center justify-between border-t border-border pt-2.5">
+              <span className="text-muted-foreground">Difference</span>
+              <span
+                className="font-mono font-bold"
+                style={{ color: diff != null && diff > 0 ? "#e11d48" : diff != null && diff < 0 ? "#059669" : undefined }}
+              >
+                {diff != null ? `${diff > 0 ? "+" : diff < 0 ? "−" : ""}${formatNumber(Math.abs(diff))}` : "—"}{" "}
+                <span className="text-xs font-normal text-muted-foreground">m³</span>
+              </span>
+            </div>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {balance.map((b) => (

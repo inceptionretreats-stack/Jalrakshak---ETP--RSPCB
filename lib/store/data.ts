@@ -42,6 +42,7 @@ export interface RegisterInput {
   name: string;
   ownerName: string;
   area: string;
+  address?: string;
   mobile: string;
   email: string;
   consentNumber: string;
@@ -382,6 +383,7 @@ export const useDataStore = create<DataState>()(
           name: input.name,
           ownerName: input.ownerName,
           area: input.area,
+          address: input.address,
           contactPerson: input.ownerName,
           mobile: input.mobile,
           email: input.email,

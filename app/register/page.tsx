@@ -26,6 +26,7 @@ const schema = z.object({
   name: z.string().regex(/^[A-Za-z ]{2,}$/, "Company name — alphabets only"),
   ownerName: z.string().regex(/^[A-Za-z ]{2,}$/, "Owner name — alphabets only"),
   area: z.string().regex(/^[A-Za-z ]{2,}$/, "Area — alphabets only"),
+  address: z.string().min(4, "Address is required"),
   consentNumber: z.string().min(4, "Consent number required"),
   mobile: z.string().regex(/^\d{10}$/, "Enter a 10-digit mobile number"),
   email: z.string().regex(/^\S+@\S+\.\S+$/, "Valid email required"),
@@ -100,6 +101,7 @@ export default function RegisterEtpPage() {
       name: v.name,
       ownerName: v.ownerName,
       area: v.area,
+      address: v.address,
       mobile: v.mobile,
       email: v.email,
       consentNumber: v.consentNumber,
@@ -162,6 +164,9 @@ export default function RegisterEtpPage() {
               </Field>
               <Field label="Area / Location" error={errors.area?.message}>
                 <input {...filtered("area", alphaOnly)} className={inputCls} placeholder="Industrial area or zone" />
+              </Field>
+              <Field label="Address" error={errors.address?.message}>
+                <input {...register("address")} className={inputCls} placeholder="Full address" />
               </Field>
               <Field label="Consent Number" error={errors.consentNumber?.message}>
                 <input {...register("consentNumber")} className={inputCls} placeholder="RPCB/CTO/2024/XXXXX" />

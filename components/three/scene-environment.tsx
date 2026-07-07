@@ -451,7 +451,9 @@ function Trees({ transition }: { transition: TransitionRef }) {
       Array.from({ length: count }, (_, i) => {
         const right = i % 2 === 0;
         return {
-          x: (right ? 1 : -1) * (10 + Math.random() * 8),
+          // keep left-bank trees clear of the factory (hall spans x≈-15..-8):
+          // right bank ∈ [10,18], left bank ∈ [-20,-16.5]
+          x: right ? 10 + Math.random() * 8 : -(16.5 + Math.random() * 3.5),
           z: -3 - Math.random() * 7,
           scale: 0.7 + Math.random() * 0.9,
           phase: Math.random() * 6,

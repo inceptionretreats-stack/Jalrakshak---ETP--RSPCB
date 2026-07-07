@@ -40,6 +40,7 @@ export interface Industry {
   name: string;
   ownerName: string;
   area: string;
+  address?: string;
   contactPerson: string;
   mobile: string;
   email: string;
