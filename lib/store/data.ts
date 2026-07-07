@@ -453,6 +453,17 @@ export interface DashboardMetrics {
   activeAlerts: number;
 }
 
+/**
+ * Time-synced daily intake for an ETP unit — keyed on the stored entry DATE
+ * (local YYYY-MM-DD), so "today" rolls into "yesterday" automatically when the
+ * calendar day changes. Missing days count as 0.
+ */
+export function dailyIntake(entries: EtpEntry[], todayStr: string, yesterdayStr: string) {
+  const today = entries.find((e) => e.date === todayStr)?.totalWaterIntake ?? 0;
+  const yesterday = entries.find((e) => e.date === yesterdayStr)?.totalWaterIntake ?? 0;
+  return { today, yesterday, difference: today - yesterday };
+}
+
 export function selectMetrics(s: DataState): DashboardMetrics {
   return {
     totalIndustries: s.industries.length,

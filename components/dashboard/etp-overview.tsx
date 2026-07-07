@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { type ColumnDef } from "@tanstack/react-table";
 import { Plus, Gauge, Clock, Droplets, Waves, Recycle, ArrowRight, Trash2, ClipboardList, Download } from "lucide-react";
@@ -12,7 +12,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Icon } from "@/components/shared/icon";
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/lib/store/auth";
-import { useDataStore } from "@/lib/store/data";
+import { useDataStore, dailyIntake } from "@/lib/store/data";
 import { buildEtpStageFlow } from "@/lib/data/etp-flow";
 import { STATUS_COLOR, complianceStatus, ALERT_META } from "@/lib/constants";
 import { formatNumber, formatDate, timeAgo } from "@/lib/utils";
@@ -32,10 +32,23 @@ export function EtpOverview() {
     [etpEntries, industryId],
   );
   const latest = mine[0];
-  const prev = mine[1];
-  // Rolling "today vs yesterday": today's latest total intake minus the previous
-  // entry's. As new entries arrive, today's value naturally becomes yesterday's.
-  const diff = latest && prev ? latest.totalWaterIntake - prev.totalWaterIntake : null;
+  // Time-synced by calendar date: "today" becomes "yesterday" automatically when
+  // the day rolls over. Compute the date client-side (avoids hydration mismatch),
+  // matching how entries build their local YYYY-MM-DD date.
+  const [todayStr, setTodayStr] = useState("");
+  useEffect(() => {
+    const n = new Date();
+    const p = (x: number) => String(x).padStart(2, "0");
+    setTodayStr(`${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`);
+  }, []);
+  const yesterdayStr = useMemo(() => {
+    if (!todayStr) return "";
+    const d = new Date(todayStr + "T00:00:00");
+    d.setDate(d.getDate() - 1);
+    const p = (x: number) => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  }, [todayStr]);
+  const intake = dailyIntake(mine, todayStr, yesterdayStr);
   const myAlerts = alerts.filter((a) => a.industryId === industryId && a.status === "active").slice(0, 5);
   const pending = mine.filter((e) => e.status === "pending").length;
   const myCompliance = compliance.find((c) => c.industryId === industryId);
@@ -157,23 +170,20 @@ export function EtpOverview() {
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Today</span>
               <span className="font-mono font-bold text-foreground">
-                {latest ? formatNumber(latest.totalWaterIntake) : "—"} <span className="text-xs font-normal text-muted-foreground">m³</span>
+                {formatNumber(intake.today)} <span className="text-xs font-normal text-muted-foreground">m³</span>
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Yesterday</span>
               <span className="font-mono font-bold text-foreground">
-                {prev ? formatNumber(prev.totalWaterIntake) : "—"} <span className="text-xs font-normal text-muted-foreground">m³</span>
+                {formatNumber(intake.yesterday)} <span className="text-xs font-normal text-muted-foreground">m³</span>
               </span>
             </div>
             <div className="flex items-center justify-between border-t border-border pt-2.5">
               <span className="text-muted-foreground">Difference</span>
-              <span
-                className="font-mono font-bold"
-                style={{ color: diff != null && diff > 0 ? "#e11d48" : diff != null && diff < 0 ? "#059669" : undefined }}
-              >
-                {diff != null ? `${diff > 0 ? "+" : diff < 0 ? "−" : ""}${formatNumber(Math.abs(diff))}` : "—"}{" "}
-                <span className="text-xs font-normal text-muted-foreground">m³</span>
+              <span className="font-mono font-bold text-foreground">
+                {intake.difference > 0 ? "+" : intake.difference < 0 ? "−" : ""}
+                {formatNumber(Math.abs(intake.difference))} <span className="text-xs font-normal text-muted-foreground">m³</span>
               </span>
             </div>
           </div>
