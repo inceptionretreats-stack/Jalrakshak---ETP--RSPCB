@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useDataStore } from "@/lib/store/data";
 import { buildEtpStageFlow } from "@/lib/data/etp-flow";
 import { STATUS_COLOR, complianceStatus } from "@/lib/constants";
-import { formatNumber, formatDate } from "@/lib/utils";
+import { formatNumber, formatDate, toCSV } from "@/lib/utils";
 import type { EtpEntry, Industry } from "@/lib/types";
 
 export default function IndividualEtpPage() {
@@ -289,14 +289,7 @@ function SummaryStat({ label, value, accent }: { label: string; value: number; a
   );
 }
 
-/* ---- local CSV helpers (same as the Reports panel) ---- */
-function toCSV(rows: Record<string, unknown>[]) {
-  if (!rows.length) return "No data";
-  const headers = Object.keys(rows[0]);
-  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
-}
-
+/* ---- local CSV download helper ---- */
 function download(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

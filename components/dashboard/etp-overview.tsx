@@ -15,7 +15,7 @@ import { useAuthStore } from "@/lib/store/auth";
 import { useDataStore, dailyIntake } from "@/lib/store/data";
 import { buildEtpStageFlow } from "@/lib/data/etp-flow";
 import { STATUS_COLOR, complianceStatus, ALERT_META } from "@/lib/constants";
-import { formatNumber, formatDate, timeAgo } from "@/lib/utils";
+import { formatNumber, formatDate, timeAgo, toCSV } from "@/lib/utils";
 import type { EtpEntry } from "@/lib/types";
 
 export function EtpOverview() {
@@ -271,14 +271,7 @@ function Num({ v, unit }: { v: number; unit?: string }) {
   );
 }
 
-/* ---- local CSV helpers (same as the Reports panel) ---- */
-function toCSV(rows: Record<string, unknown>[]) {
-  if (!rows.length) return "No data";
-  const headers = Object.keys(rows[0]);
-  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
-}
-
+/* ---- local CSV download helper ---- */
 function download(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

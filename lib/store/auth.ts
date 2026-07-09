@@ -37,8 +37,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
   login: (role, industryId = null) => set({ role, industryId, isAuthed: true, authReady: true }),
   logout: () => {
     void signOut(auth);
-    // Clear the shared dataset from memory WITHOUT persisting — a persist here
-    // would overwrite the shared state/app doc with the local seed.
+    // Clear the dataset from memory WITHOUT persisting — a persist here would
+    // clobber the per-industry documents with the local seed.
     remoteApply.active = true;
     try {
       useDataStore.getState().resetData();

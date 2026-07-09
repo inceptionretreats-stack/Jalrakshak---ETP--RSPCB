@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -15,6 +14,7 @@ import { db } from "@/lib/firebase";
 import { useDataStore } from "@/lib/store/data";
 import { useAuthStore } from "@/lib/store/auth";
 import { useAccountsStore } from "@/lib/store/accounts";
+import { remoteApply, emptyData, writeOwnedIndustry, syncContext } from "@/lib/data/firestore-storage";
 import { cn } from "@/lib/utils";
 
 // Input transforms (applied on every keystroke).
@@ -48,7 +48,6 @@ const schema = z.object({
 type FormValues = z.input<typeof schema>;
 
 export default function RegisterEtpPage() {
-  const router = useRouter();
   const registerIndustry = useDataStore((s) => s.registerIndustry);
   const login = useAuthStore((s) => s.login);
   const signup = useAccountsStore((s) => s.signup);
@@ -85,18 +84,24 @@ export default function RegisterEtpPage() {
   const onSubmit = handleSubmit(async (values) => {
     const v = schema.parse(values);
     setSubmitting(true);
-    // 1) Create the account first so we're authenticated before touching the
-    //    shared dataset (the Firestore rules require auth to read/write state/app).
+    // 1) Create the account first so we're authenticated before touching Firestore
+    //    (the rules require auth to create the industry document).
     const acct = await signup({ name: v.ownerName, email: v.email, password: v.password, role: "etp", industryId: null });
     if (!acct.ok) {
       toast.error("Registration failed", { description: acct.error });
       setSubmitting(false);
       return;
     }
-    // 2) Load the CURRENT shared dataset so we APPEND to it instead of
-    //    overwriting state/app with our local seed (which used to wipe other units).
-    await useDataStore.persist.rehydrate();
-    // 3) Append the new unit to the real data — this persists the merged dataset.
+    // 2) A new operator's world is just its own unit — start from a clean slate so
+    //    we never touch (or read) any other tenant's data.
+    remoteApply.active = true;
+    try {
+      useDataStore.setState(emptyData());
+    } finally {
+      remoteApply.active = false;
+    }
+    // 3) Create the unit locally, then persist it as an operator-owned industry
+    //    document (stamped with this account's uid so the rules bind it to them).
     const created = registerIndustry({
       name: v.name,
       ownerName: v.ownerName,
@@ -116,15 +121,32 @@ export default function RegisterEtpPage() {
       roStage3: v.roStage3,
       roStage4: v.roStage4,
     });
-    // 4) Link the new account to its freshly-created industry id.
+    // 4) Persist the unit as an operator-owned industry document (create; stamps
+    //    ownerUid so the Firestore rules bind it to this account).
+    try {
+      await writeOwnedIndustry(useDataStore.getState(), created.id, acct.user.id);
+    } catch {
+      // best-effort — persistence must not block entering the panel
+    }
+    // 5) Link the account → its industry (so future sessions load it) and point the
+    //    sync context at it so submissions persist immediately, before the auth
+    //    listener re-reads the profile.
     try {
       await setDoc(doc(db, "users", acct.user.id), { industryId: created.id }, { merge: true });
     } catch {
       // best-effort — the session industryId is still set optimistically below
     }
+    syncContext.uid = acct.user.id;
+    syncContext.role = "etp";
+    syncContext.industryId = created.id;
+    syncContext.ready = true;
     toast.success("ETP unit registered", { description: `${created.name} is now pending verification.` });
     login("etp", created.id);
-    setTimeout(() => router.push("/dashboard"), 600);
+    // Hard navigation so the auth listener re-hydrates cleanly from the now-linked
+    // profile (avoids a race with the sign-up's in-flight onAuthStateChanged).
+    setTimeout(() => {
+      window.location.href = "/dashboard";
+    }, 600);
   });
 
   return (

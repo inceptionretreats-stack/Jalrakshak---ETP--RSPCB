@@ -2,124 +2,133 @@
 
 import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, type Unsubscribe } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { useAuthStore } from "@/lib/store/auth";
 import { useUIStore } from "@/lib/store/ui";
-import { useDataStore } from "@/lib/store/data";
-import { lastWrite, remoteApply } from "@/lib/data/firestore-storage";
+import { useDataStore, buildSeedState } from "@/lib/store/data";
+import {
+  remoteApply,
+  syncContext,
+  resetSyncCaches,
+  loadAllIndustries,
+  loadOneIndustry,
+  subscribeAll,
+  subscribeOne,
+  seedIndustries,
+  emptyData,
+  type StoreData,
+} from "@/lib/data/firestore-storage";
 import type { RoleId } from "@/lib/types";
 
 /**
- * Firebase drives auth + the shared data store.
- * - onAuthStateChanged restores the session (role/industryId from `users/{uid}`).
- * - The dataset lives in the shared Firestore doc `state/app`, readable only when
- *   signed in (rules require auth). We load it on sign-in — keyed by uid — so a
- *   fresh login always shows the real shared data (never the local seed), which
- *   fixes "registered units missing until refresh". A live `onSnapshot` listener
- *   then keeps every open session in sync without a manual refresh. On sign-out
- *   we clear the store back to the seed. The UI store stays on localStorage.
+ * Firebase drives auth + the per-tenant data store.
+ * - onAuthStateChanged restores the session (role + industryId from users/{uid}).
+ * - The dataset is sharded into per-industry documents (industries/{id}). The
+ *   REGULATOR (monitoring-admin) loads and live-syncs EVERY industry; an ETP
+ *   OPERATOR loads and live-syncs ONLY the unit bound to its profile. Tenant
+ *   isolation is enforced by firestore.rules, so an operator can neither read
+ *   other units' PII nor overwrite their regulatory data.
+ * - On the first admin sign-in against an empty project the local seed dataset is
+ *   written out as per-industry documents (regulator-only bootstrap).
+ * - On sign-out the store is cleared to empty. The UI store stays on localStorage.
  */
 export function StoreHydrator() {
   useEffect(() => {
     useUIStore.persist.rehydrate();
 
-    const setSession = useAuthStore.getState().setSession;
-    const stateRef = doc(db, "state", "app");
-    let hydratedUid: string | null = null;
-    let unsubSnap: (() => void) | null = null;
-
-    // Apply a remote `state/app` payload to the store WITHOUT persisting it back
-    // (remoteApply suppresses the echo write in firestoreStorage.setItem).
-    const applyRemoteState = (json: string) => {
+    // Apply a remote dataset to the store WITHOUT persisting it back.
+    const applyData = (data: StoreData) => {
+      remoteApply.active = true;
       try {
-        const parsed = JSON.parse(json);
-        if (!parsed || !parsed.state) return;
-        remoteApply.active = true;
-        try {
-          useDataStore.setState(parsed.state);
-        } finally {
-          remoteApply.active = false;
-        }
-      } catch {
-        // ignore malformed remote payload
+        useDataStore.setState(data);
+      } finally {
+        remoteApply.active = false;
       }
     };
 
-    const detachSnap = () => {
-      if (unsubSnap) {
-        unsubSnap();
-        unsubSnap = null;
+    let unsub: Unsubscribe | null = null;
+    const detach = () => {
+      if (unsub) {
+        unsub();
+        unsub = null;
       }
     };
 
-    const attachSnap = () => {
-      detachSnap();
-      unsubSnap = onSnapshot(stateRef, (snap) => {
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const json = data.json as string | undefined;
-        const updatedAt = (data.updatedAt as number | undefined) ?? 0;
-        if (typeof json !== "string" || !json) return;
-        if (updatedAt <= lastWrite.at) return; // our own write / stale echo
-        const localJson = JSON.stringify({ state: useDataStore.getState(), version: 4 });
-        if (json === localJson) return; // no-op change
-        applyRemoteState(json);
-      });
-    };
+    const setSession = useAuthStore.getState().setSession;
 
     const unsubAuth = onAuthStateChanged(auth, async (fbUser) => {
-      // 1) Session (role + industryId from the Firestore profile).
-      if (fbUser) {
-        try {
-          const snap = await getDoc(doc(db, "users", fbUser.uid));
-          const d = snap.exists() ? snap.data() : null;
-          setSession({
-            uid: fbUser.uid,
-            role: (d?.role as RoleId) ?? "etp",
-            industryId: (d?.industryId as string | null) ?? null,
-          });
-        } catch {
-          setSession({ uid: fbUser.uid, role: "etp", industryId: null });
-        }
-      } else {
+      detach();
+
+      if (!fbUser) {
         setSession(null);
+        syncContext.uid = null;
+        syncContext.role = null;
+        syncContext.industryId = null;
+        syncContext.ready = false;
+        resetSyncCaches();
+        applyData(emptyData());
+        return;
       }
 
-      // 2) Shared data store — only when signed in (rules require auth).
-      if (fbUser) {
-        if (hydratedUid !== fbUser.uid) {
-          hydratedUid = fbUser.uid;
-          try {
-            const snap = await getDoc(stateRef);
-            const json = snap.exists() ? (snap.data().json as string | undefined) : undefined;
-            if (typeof json === "string" && json) {
-              applyRemoteState(json); // authoritative initial load of the real data
-            } else {
-              useDataStore.setState((s) => ({ ...s })); // seed the doc on first-ever load
-            }
-          } catch {
-            // best-effort
-          }
-          attachSnap();
-        }
-      } else {
-        detachSnap();
-        hydratedUid = null;
-        // Clear to the seed locally WITHOUT persisting (would clobber the shared doc).
-        remoteApply.active = true;
-        try {
-          useDataStore.getState().resetData();
-        } finally {
-          remoteApply.active = false;
-        }
+      // 1) Profile (role + industryId). Defaults keep a broken/missing profile
+      //    to the least-privileged role.
+      let role: RoleId = "etp";
+      let industryId: string | null = null;
+      try {
+        const snap = await getDoc(doc(db, "users", fbUser.uid));
+        const d = snap.exists() ? snap.data() : null;
+        role = (d?.role as RoleId) ?? "etp";
+        industryId = (d?.industryId as string | null) ?? null;
+      } catch {
+        // best-effort — fall back to the operator default
       }
+      setSession({ uid: fbUser.uid, role, industryId });
+
+      // Suppress writes until the initial load finishes, so the store's seed
+      // state can never clobber a real industry document.
+      syncContext.uid = fbUser.uid;
+      syncContext.role = role;
+      syncContext.industryId = industryId;
+      syncContext.ready = false;
+      resetSyncCaches();
+
+      // 2) Load the caller's authorized slice of the dataset.
+      if (role === "monitoring-admin") {
+        try {
+          let { data, count } = await loadAllIndustries();
+          if (count === 0) {
+            // First-ever admin sign-in against an empty project: bootstrap the
+            // per-industry documents from the local seed (regulator-only write).
+            await seedIndustries(buildSeedState());
+            data = (await loadAllIndustries()).data;
+          }
+          applyData(data);
+        } catch {
+          // best-effort
+        }
+        unsub = subscribeAll((d) => applyData(d));
+      } else if (industryId) {
+        try {
+          const data = await loadOneIndustry(industryId);
+          applyData(data ?? emptyData());
+        } catch {
+          applyData(emptyData());
+        }
+        unsub = subscribeOne(industryId, (d) => applyData(d));
+      } else {
+        // Authenticated but not yet bound to an industry (e.g. mid self-registration).
+        applyData(emptyData());
+      }
+
+      syncContext.ready = true;
     });
 
     return () => {
       unsubAuth();
-      detachSnap();
+      detach();
     };
   }, []);
+
   return null;
 }

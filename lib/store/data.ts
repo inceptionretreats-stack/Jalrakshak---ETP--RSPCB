@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { firestoreStorage } from "@/lib/data/firestore-storage";
+import { firestoreStorage, type StoreData } from "@/lib/data/firestore-storage";
 import type {
   Industry,
   FlowMeterReading,
@@ -88,7 +88,7 @@ interface DataState {
   resetData: () => void;
 }
 
-const seed = () => {
+const seed = (): StoreData => {
   const readings = buildReadings();
   const etpEntries = buildEtpEntries();
   return {
@@ -100,6 +100,12 @@ const seed = () => {
     compliance: buildCompliance(),
   };
 };
+
+/** The full local seed dataset — used by StoreHydrator to bootstrap the
+ *  per-industry documents on the first regulator sign-in against an empty project. */
+export function buildSeedState(): StoreData {
+  return seed();
+}
 
 function nowISO() {
   return new Date().toISOString();

@@ -5,15 +5,9 @@ import { FileSpreadsheet, Download, CalendarDays, CalendarRange, Factory, Shield
 import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { useDataStore } from "@/lib/store/data";
+import { toCSV } from "@/lib/utils";
 
 const TODAY = "2026-06-20";
-
-function toCSV(rows: Record<string, unknown>[]) {
-  if (!rows.length) return "No data";
-  const headers = Object.keys(rows[0]);
-  const escape = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
-}
 
 function download(filename: string, content: string) {
   const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });

@@ -52,3 +52,21 @@ export function initials(name: string) {
     .map((w) => w[0]?.toUpperCase())
     .join("");
 }
+
+/**
+ * Serialize an array of row objects to CSV text. Hardened against CSV / formula
+ * injection: any cell whose text begins with a formula trigger (=, +, -, @, tab
+ * or CR) is prefixed with a single quote so spreadsheet apps (Excel / Sheets /
+ * LibreOffice) treat it as literal text and never evaluate it. All values are
+ * wrapped in double quotes with embedded quotes doubled.
+ */
+export function toCSV(rows: Record<string, unknown>[]) {
+  if (!rows.length) return "No data";
+  const headers = Object.keys(rows[0]);
+  const escape = (v: unknown) => {
+    const s = String(v ?? "");
+    const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
+  return [headers.join(","), ...rows.map((r) => headers.map((h) => escape(r[h])).join(","))].join("\n");
+}

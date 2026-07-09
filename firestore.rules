@@ -3,16 +3,69 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // User profiles — each signed-in user can read/write only their own doc.
-    match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // ---- Helpers -------------------------------------------------------------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    // The Monitoring Body (RSPCB regulator). Trustworthy because clients can no
+    // longer self-assign the role (see the /users rules below).
+    function isAdmin() {
+      return hasProfile() && profile().role == 'monitoring-admin';
+    }
+    // The signed-in ETP operator is bound to exactly one industry via their
+    // profile's industryId.
+    function ownsIndustry(industryId) {
+      return hasProfile() && profile().industryId == industryId;
     }
 
-    // Shared application dataset (industries, ETP entries, readings, alerts,
-    // approvals, compliance) stored as a single document. Any signed-in user
-    // — the Monitoring Body or an ETP operator — may read and write it.
-    match /state/{docId} {
-      allow read, write: if request.auth != null;
+    // ---- User profiles -------------------------------------------------------
+    match /users/{uid} {
+      // A signed-in user may read only their own profile.
+      allow read: if signedIn() && request.auth.uid == uid;
+
+      // On create the role is forced to the non-privileged "etp": clients may NOT
+      // self-assign "monitoring-admin". Regulator accounts are provisioned
+      // out-of-band (Firebase console / Admin SDK), never via the app.
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.role == 'etp';
+
+      // On update any field may change EXCEPT role, which is immutable from the
+      // client — this closes the privilege-escalation path.
+      allow update: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.role == resource.data.role;
+
+      // No client deletes.
+    }
+
+    // ---- Per-industry datasets ----------------------------------------------
+    // Each industry's full slice (profile, readings, ETP entries, approvals,
+    // alerts, compliance) lives in its own document. The regulator reads/writes
+    // every industry; an ETP operator reads/writes ONLY the unit it owns. This
+    // enforces tenant isolation server-side — an operator can neither read other
+    // industries' PII nor overwrite their regulatory data.
+    match /industries/{industryId} {
+      allow read: if isAdmin() || ownsIndustry(industryId);
+
+      // Self-registration: an authenticated operator may create the industry doc
+      // it stamps with its own uid as ownerUid (before the profile link exists).
+      allow create: if isAdmin()
+                    || (signedIn() && request.resource.data.ownerUid == request.auth.uid);
+
+      // An operator may update its own unit — matched either by the profile link
+      // or by the ownerUid stamped at creation (covers the brief window before
+      // the profile's industryId is set). Regulator may update any.
+      allow update: if isAdmin()
+                    || ownsIndustry(industryId)
+                    || (signedIn() && resource.data.ownerUid == request.auth.uid);
+
+      allow delete: if isAdmin();
     }
 
     // Everything else is denied by default.
