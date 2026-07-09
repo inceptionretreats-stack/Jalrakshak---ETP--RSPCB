@@ -80,15 +80,33 @@ export default function EtpEntryPage() {
     setValue("date", d);
   }, [setValue]);
 
-  const fresh = Number(watch("freshWaterConsumption")) || 0;
-  const reuse = Number(watch("etpReuse")) || 0;
-  const permeate = Number(watch("roPermeate")) || 0;
+  const formValues = watch();
+  const fresh = Number(formValues.freshWaterConsumption) || 0;
+  const reuse = Number(formValues.etpReuse) || 0;
+  const permeate = Number(formValues.roPermeate) || 0;
   const totalWaterIntake = fresh + reuse + permeate;
 
   // ETP Inlet must not exceed the unit's sanctioned ETP capacity (KLD).
   const etpCapacity = industry?.etpCapacity ?? 0;
-  const etpInletVal = Number(watch("etpInlet")) || 0;
+  const etpInletVal = Number(formValues.etpInlet) || 0;
   const etpInletExceeded = !!industry && etpInletVal > etpCapacity;
+
+  // Every downstream flow must be strictly LESS THAN Fresh Water Consumption.
+  // A zero/empty field is ignored so the pristine form doesn't flag errors.
+  const DOWNSTREAM_FIELDS: (keyof FormValues)[] = [
+    "etpInlet",
+    "etpOutlet",
+    "etpReuse",
+    "roInlet",
+    "roReject",
+    "roPermeate",
+    "sludgeToTSDF",
+  ];
+  const exceedsFresh = (name: keyof FormValues) => {
+    const v = Number(formValues[name]) || 0;
+    return v > 0 && v >= fresh;
+  };
+  const freshViolated = DOWNSTREAM_FIELDS.some(exceedsFresh);
 
   // Alert the Monitoring Body once per breach (reset when corrected).
   const alertedRef = useRef(false);
@@ -114,6 +132,7 @@ export default function EtpEntryPage() {
   const onSubmit = handleSubmit((values) => {
     if (!industryId) return;
     if (etpInletExceeded) return; // blocked: ETP Inlet over capacity
+    if (freshViolated) return; // blocked: a field is ≥ Fresh Water Consumption
     const v = schema.parse(values);
     const { entry, alerts } = submitEtpEntry({
       industryId,
@@ -165,12 +184,16 @@ export default function EtpEntryPage() {
               <input type="hidden" {...register("date")} />
             </Field>
             <div className="hidden sm:block" />
-            {FIELDS.map((f) =>
-              f.name === "etpInlet" ? (
+            {FIELDS.map((f) => {
+              const freshErr =
+                f.name !== "freshWaterConsumption" && exceedsFresh(f.name)
+                  ? `Must be less than Fresh Water Consumption (${formatNumber(fresh)} m³)`
+                  : undefined;
+              return f.name === "etpInlet" ? (
                 <Field
                   key={f.name}
                   label={`${f.label} (m³) · max ${formatNumber(etpCapacity)} KLD`}
-                  error={errors[f.name]?.message ?? (etpInletExceeded ? `Exceeds sanctioned ETP capacity (${formatNumber(etpCapacity)} KLD). You cannot proceed — the Monitoring Body has been notified.` : undefined)}
+                  error={errors[f.name]?.message ?? (etpInletExceeded ? `Exceeds sanctioned ETP capacity (${formatNumber(etpCapacity)} KLD). You cannot proceed — the Monitoring Body has been notified.` : freshErr)}
                 >
                   <input
                     type="number"
@@ -178,24 +201,25 @@ export default function EtpEntryPage() {
                     max={etpCapacity}
                     {...register(f.name)}
                     onBlur={handleEtpInletBlur}
-                    className={`${inputCls}${etpInletExceeded ? " border-red-500/70 bg-red-500/5 focus:border-red-500" : ""}`}
+                    className={`${inputCls}${etpInletExceeded || freshErr ? " border-red-500/70 bg-red-500/5 focus:border-red-500" : ""}`}
                     placeholder="0"
-                    aria-invalid={etpInletExceeded}
+                    aria-invalid={etpInletExceeded || !!freshErr}
                   />
                 </Field>
               ) : (
-                <Field key={f.name} label={`${f.label} (m³)`} error={errors[f.name]?.message}>
+                <Field key={f.name} label={`${f.label} (m³)`} error={errors[f.name]?.message ?? freshErr}>
                   <input
                     type="number"
                     step="any"
                     {...register(f.name)}
                     readOnly={etpInletExceeded}
-                    className={`${inputCls}${etpInletExceeded ? " cursor-not-allowed opacity-60" : ""}`}
+                    className={`${inputCls}${freshErr ? " border-red-500/70 bg-red-500/5 focus:border-red-500" : ""}${etpInletExceeded ? " cursor-not-allowed opacity-60" : ""}`}
                     placeholder="0"
+                    aria-invalid={!!freshErr}
                   />
                 </Field>
-              ),
-            )}
+              );
+            })}
             <Field label="Total Water Intake (m³ · auto)">
               <div className="flex h-10 items-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-3 font-mono text-sm font-bold text-primary">
                 <Calculator className="h-4 w-4" />
@@ -229,6 +253,13 @@ export default function EtpEntryPage() {
                     <span className="font-semibold">Entry blocked.</span> ETP Inlet {formatNumber(etpInletVal)} m³ exceeds the sanctioned ETP capacity ({formatNumber(etpCapacity)} KLD). The Monitoring Body has been notified — reduce ETP Inlet to continue.
                   </span>
                 </div>
+              ) : freshViolated ? (
+                <div className="flex items-start gap-2 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-600">
+                  <Ban className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    <span className="font-semibold">Check your values.</span> Every field must be less than Fresh Water Consumption ({formatNumber(fresh)} m³).
+                  </span>
+                </div>
               ) : predicted.length === 0 ? (
                 <p className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm text-emerald-600">
                   <Check className="h-4 w-4" /> No alerts — clean entry
@@ -245,9 +276,9 @@ export default function EtpEntryPage() {
               )}
             </div>
 
-            <Button type="submit" disabled={isSubmitting || etpInletExceeded} className="h-11 w-full gap-2 rounded-xl text-base font-semibold">
+            <Button type="submit" disabled={isSubmitting || etpInletExceeded || freshViolated} className="h-11 w-full gap-2 rounded-xl text-base font-semibold">
               <Send className="h-4 w-4" />
-              {etpInletExceeded ? "Blocked — over capacity" : isSubmitting ? "Submitting…" : "Submit Water Balance"}
+              {etpInletExceeded ? "Blocked — over capacity" : freshViolated ? "Values must be under Fresh Water" : isSubmitting ? "Submitting…" : "Submit Water Balance"}
             </Button>
           </div>
 
